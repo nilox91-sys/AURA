@@ -3,6 +3,7 @@ import ipaddress
 from urllib.parse import urlsplit
 
 EXTRA_DEFAULTS = {
+    'ai_model_allowlist':[],
     'openai_api_key':'', 'anthropic_api_key':'', 'mistral_api_key':'', 'deepseek_api_key':'',
     'lmstudio_api_key':'', 'compatible_api_key':'',
     'lmstudio_host':'http://127.0.0.1:1234/v1', 'compatible_base_url':'http://127.0.0.1:1234/v1',

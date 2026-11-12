@@ -3,6 +3,7 @@
     const form = document.getElementById('settings-form');
     if (!form) return;
     const settings = window.AURA_SETTINGS || {}, profiles = window.AURA_DIALECTS || {}, providers = window.AURA_PROVIDERS;
+    const allowedModels=settings.ai_model_allowlist||[];
     const node = id => document.getElementById(id), value = id => node(id).value.trim();
     const state = node('save-state'); let previewRun = 0, saving;
     const previewPlayer = new window.AuraSpeech.SpeechPlayer(settings, status => {
@@ -37,9 +38,12 @@
         selected=value('connection-provider');
         for(const el of document.querySelectorAll('[data-provider]'))el.hidden=el.dataset.provider!==selected;
         node('model-controls').hidden=selected==='auto';
-        node('model-id').value=modelValues[selected]??providers[selected]?.default??'';
+        const models=allowedModels.filter(entry=>entry.startsWith(selected+':')).map(entry=>entry.slice(selected.length+1));
+        if(allowedModels.length)node('model-id').replaceChildren(...models.map(model=>new Option(model,model)));
+        const desired=modelValues[selected]??providers[selected]?.default??'';
+        node('model-id').value=allowedModels.length?(models.includes(desired)?desired:models[0]||''):desired;
         node('model-catalog').replaceChildren();node('connection-result').textContent='';
-        node('model-note').textContent='Verifica per leggere il catalogo, oppure inserisci un identificativo. Il catalogo non garantisce quote o permessi di generazione.';
+        node('model-note').textContent=allowedModels.length?'Selezione mantenuta dopo le prove di risposta. Puoi ripetere la prova per controllare la disponibilità attuale.':'Verifica per leggere il catalogo, oppure inserisci un identificativo. Il catalogo non garantisce quote o permessi di generazione.';
         if(selected!=='auto') {
             const provider=selected,model=value('model-id');
             fetch('/api/integrations/status?'+new URLSearchParams({provider,model})).then(r=>r.json()).then(data=>{
@@ -50,6 +54,7 @@
         }
     }
     function setModel(model) {
+        if(allowedModels.length&&!allowedModels.includes(model))model=allowedModels[0];
         const pos=model.indexOf(':');let provider=pos<0?'huggingface':model.slice(0,pos);
         if(provider==='hf')provider='huggingface';
         if(!providers[provider])provider='auto';
@@ -159,13 +164,13 @@
             if(!test && result.generation?.message)output.textContent+=' Ultima prova: '+result.generation.message+' '+(result.generation.action||'');
             if(result.models) {
                 node('model-catalog').replaceChildren(...result.models.map(model=>new Option(model,model)));
-                node('model-note').textContent=result.models.length+' modelli nel catalogo. Digita per cercare; puoi scrivere anche un altro identificativo.';
+                node('model-note').textContent=allowedModels.length?'Catalogo controllato. La selezione rimane limitata ai modelli mantenuti.':result.models.length+' modelli nel catalogo. Digita per cercare; puoi scrivere anche un altro identificativo.';
                 if(!value('model-id') && result.models.length){node('model-id').value=result.models[0];saveState('Modello trovato · salva per usarlo','dirty');}
                 if(selected==='gemini' && value('model-id').startsWith('gemini-2.5-'))output.textContent+=' I modelli 2.5 possono essere dismessi per i nuovi account: prova Gemini 3.1 Flash Lite.';
             }
         }catch(error){if(selected!==provider||value('model-id')!==model)return;
             output.dataset.state='error';output.textContent=error.name==='TimeoutError'?'Il servizio ha impiegato troppo tempo. Riprova.':error.message;
-            if(error.details?.suggested_model && selected==='gemini') {
+            if(error.details?.suggested_model && selected==='gemini' && (!allowedModels.length||allowedModels.includes('gemini:'+error.details.suggested_model))) {
                 const button=document.createElement('button');button.type='button';button.className='soft-button';button.textContent='Usa '+error.details.suggested_model;
                 button.addEventListener('click',()=>{node('model-id').value=error.details.suggested_model;saveState('Modello aggiornato · salva o prova una risposta','dirty');});output.append(document.createElement('br'),button);
             }
@@ -177,7 +182,7 @@
         button.disabled=true;try{const provider=button.dataset.removeKey;const data=await request('/api/integrations/remove-key',{provider});const input=node(providers[provider].key.replaceAll('_','-'));input.value='';input.placeholder=data.environment_key_present?'Chiave presente nella configurazione .env':'Non configurata';saveState(data.environment_key_present?'Chiave locale rimossa; resta quella del file .env':'Chiave rimossa','saved');}catch(error){saveState(error.message,'error');}finally{button.disabled=false;}
     });
     node('export-preferences').addEventListener('click',async()=>{if(await saveForm())location.href='/api/preferences/export';});
-    const excluded=key=>secret(key)||key.startsWith('github_')||key==='schema_version';
+    const excluded=key=>secret(key)||key.startsWith('github_')||key==='schema_version'||key==='ai_model_allowlist';
     node('import-preferences').addEventListener('change',async event=>{
         const file=event.target.files[0];if(!file)return;
         try {

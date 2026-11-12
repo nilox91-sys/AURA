@@ -7,6 +7,7 @@ import re
 import tempfile
 from threading import RLock
 from preferences import ENUMS, TEXT_LIMITS, MULTILINE, validate_endpoint
+from provider_registry import PROVIDERS
 
 SECRET_KEYS = {'hf_api_key', 'groq_api_key', 'gemini_api_key', 'openrouter_api_key', 'openai_api_key', 'anthropic_api_key', 'mistral_api_key', 'deepseek_api_key', 'lmstudio_api_key', 'compatible_api_key'}
 
@@ -30,6 +31,16 @@ class SettingsManager:
                         logging.getLogger('Jarvis.Settings').warning('Impostazione non valida: %s; uso il valore predefinito.', key)
 
     def validate(self, key, value):
+        if key=='ai_model_allowlist':
+            if not isinstance(value,list) or len(value)>64:
+                raise ValueError('Elenco dei modelli non valido.')
+            for entry in value:
+                if not isinstance(entry,str) or len(entry)>180 or not re.fullmatch(r'[\w./:@+-]+',entry):
+                    raise ValueError('Identificativo del modello non valido.')
+                provider,sep,model=entry.partition(':')
+                if not sep or provider not in PROVIDERS or not model:
+                    raise ValueError('Servizio del modello non riconosciuto.')
+            return list(dict.fromkeys(value))
         default = self.defaults[key]
         if isinstance(default, bool):
             if not isinstance(value, bool):
@@ -103,6 +114,11 @@ class SettingsManager:
                 if key in SECRET_KEYS and not validated:
                     continue
                 candidate[key] = validated
+            allowed=candidate.get('ai_model_allowlist',[])
+            if allowed:
+                if candidate.get('model') not in allowed:
+                    raise ValueError('Questo modello non è incluso nella selezione attiva.')
+                if 'allow_fallback' in candidate:candidate['allow_fallback']=False
             self.filepath.parent.mkdir(parents=True, exist_ok=True)
             temporary = None
             try:
@@ -119,8 +135,9 @@ class SettingsManager:
 
     def get_all(self):
         with self.lock:
-            return dict(self.settings)
+            return {key:list(value) if isinstance(value,list) else value for key,value in self.settings.items()}
 
     def get(self, key, default=None):
         with self.lock:
-            return self.settings.get(key, default)
+            value=self.settings.get(key, default)
+            return list(value) if isinstance(value,list) else value

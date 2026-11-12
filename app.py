@@ -15,7 +15,7 @@ import time
 from threading import Lock
 from settings_store import SettingsManager, SECRET_KEYS
 from preferences import EXTRA_DEFAULTS
-from provider_registry import PROVIDERS
+from provider_registry import PROVIDERS, visible_providers, visible_models
 from runtime_utils import cache_audio, provider_deadline
 from dialect_engine import prepare_tts_text, dialect_metadata
 from voice_profile import voice_prosody, VOICE_REVISION
@@ -323,7 +323,7 @@ def runtime_status() -> Dict[str, Any]:
     key_map = LLMEngine.provider_keys(current)
     configured_providers = [
         name
-        for name in PROVIDERS
+        for name in visible_providers(current)
         if key_map.get(name)
     ]
     return {
@@ -348,7 +348,7 @@ def runtime_status() -> Dict[str, Any]:
         "wake_word": current.get("wake_word", "ehi aura"),
         "response_style": current.get("response_style", "balanced"),
         "ai_mode": current.get("ai_mode", "balanced"),
-        "ai_health": LLMEngine.health.snapshot(key_map),
+        "ai_health": [{**item,'models':visible_models(item['id'],current,item['models'])} for item in LLMEngine.health.snapshot(key_map) if item['id'] in visible_providers(current)],
     }
 
 @app.context_processor
@@ -365,7 +365,7 @@ def aura_template_context():
     }
     selected = settings_manager.get('avatar_model', 'hiyori')
     return {'dialect_meta': dialect_metadata(), 'avatar': avatars[selected],
-            'provider_catalog': PROVIDERS, 'settings_defaults': {k:v for k,v in DEFAULT_SETTINGS.items() if k not in SECRET_KEYS},
+            'provider_catalog': visible_providers(settings_manager.get_all()), 'settings_defaults': {k:v for k,v in DEFAULT_SETTINGS.items() if k not in SECRET_KEYS},
             'voice_timbre_available': timbre_available(),
             'local_voice_available': local_voice_available(), 'qwen_voice_available': qwen_available()}
 
@@ -419,10 +419,10 @@ def providers_api():
             {
                 "id": provider,
                 "configured": bool(keys.get(provider)) if provider != "ollama" else None,
-                "models": LLMEngine.health.catalog(provider,keys) or FREE_PROVIDER_MODELS.get(provider,([info['default']] if info['default'] else [])),
+                "models": visible_models(provider,current,LLMEngine.health.catalog(provider,keys) or FREE_PROVIDER_MODELS.get(provider,([info['default']] if info['default'] else []))),
                 "label": info['label'],
             }
-            for provider, info in PROVIDERS.items()
+            for provider, info in visible_providers(current).items()
         ],
     })
 
@@ -441,6 +441,8 @@ def dialects_api():
 
 @app.route('/api/connect/openrouter', methods=['POST'])
 def connect_openrouter_api():
+    if 'openrouter' not in visible_providers(settings_manager.get_all()):
+        return jsonify(status='error',error='Servizio escluso dalla selezione attiva.'),400
     data = request.get_json(silent=True)
     if not isinstance(data, dict) or not isinstance(data.get('key', ''), str):
         return jsonify(status='error', error='Inserisci una chiave valida nel campo locale.'), 400

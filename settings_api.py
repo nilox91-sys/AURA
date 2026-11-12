@@ -4,7 +4,7 @@ from pathlib import Path
 from flask import Blueprint,jsonify,request,Response
 from ai_engine import LLMEngine, generation_options, generation_info, REPLY_SCHEMA
 from extended_ai import discover
-from provider_registry import PROVIDERS
+from provider_registry import PROVIDERS, visible_providers, visible_models, model_allowed
 from runtime_utils import cache_lock,provider_deadline
 from settings_store import SECRET_KEYS
 
@@ -18,8 +18,14 @@ def register_settings_api(app,manager,defaults,cache_dir):
         provider=body.get('provider') if isinstance(body,dict) else None
         if provider not in PROVIDERS:return jsonify(error='Servizio non riconosciuto.'),400
         settings=manager.get_all();keys=LLMEngine.provider_keys(settings)
+        if provider not in visible_providers(settings):return jsonify(error='Servizio escluso dalla selezione attiva.'),400
         try:
             result=discover(provider,settings)
+            if settings.get('ai_model_allowlist'):
+                available=set(result['models'])
+                result['models']=[name for name in visible_models(provider,settings) if name in available]
+                if not result['models'] and result['state']=='available':result['state']='no_models'
+                result['message']=f'Catalogo controllato: {len(result["models"])} modelli mantenuti nella selezione. La disponibilità attuale si verifica con una prova di risposta.'
             if result['state']=='available':
                 LLMEngine.health.catalog_success(provider,keys,result['models'])
             result['generation']=LLMEngine.health.status(provider,keys)
@@ -44,6 +50,7 @@ def register_settings_api(app,manager,defaults,cache_dir):
         if provider not in PROVIDERS or not isinstance(model,str) or not re.fullmatch(r'[\w./:@+-]{1,160}',model):
             return jsonify(error='Seleziona un servizio e un modello validi.'),400
         settings=manager.get_all();keys=LLMEngine.provider_keys(settings)
+        if not model_allowed(provider,model,settings):return jsonify(error='Modello escluso dalla selezione attiva.'),400
         if not keys.get(provider):return jsonify(error='Configura prima il servizio.'),400
         options=generation_options.set({'max_tokens':1024 if provider=='gemini' else 512,'reasoning_effort':'low'})
         deadline=provider_deadline.set(time.monotonic()+30);trace=generation_info.set({})
@@ -73,7 +80,7 @@ def register_settings_api(app,manager,defaults,cache_dir):
     @api.get('/api/preferences/export')
     def export():
         settings=manager.get_all()
-        excluded=SECRET_KEYS|{'github_client_id','github_require_login','schema_version'}
+        excluded=SECRET_KEYS|{'github_client_id','github_require_login','schema_version','ai_model_allowlist'}
         payload={'format':'aura-preferences','version':1,'preferences':{k:v for k,v in settings.items() if k not in excluded}}
         return Response(json.dumps(payload,ensure_ascii=False,indent=2),mimetype='application/json',
                         headers={'Content-Disposition':'attachment; filename="aura-preferenze.json"'})

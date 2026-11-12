@@ -26,6 +26,12 @@ Su altri sistemi: `python tools/prepare_avatar.py`, poi `python run.py`. Le funz
 
 I provider a consumo aggiunti non sono fallback automatici. Le alternative possono usare solo i servizi già previsti (Groq, Gemini, OpenRouter, Hugging Face, Ollama); disponibilità e tariffe dipendono dai modelli. Ollama e LM Studio selezionati esplicitamente, e gli endpoint compatibili locali, non passano al cloud. GitHub sign-in non fornisce chiavi AI.
 
+### Selezione essenziale dei modelli
+
+Il profilo locale può mostrare soltanto i modelli mantenuti dopo le prove di risposta. La preferenza `ai_model_allowlist` in `settings.json` contiene gli identificativi completi, ad esempio `["gemini:gemini-3.1-flash-lite"]`; un elenco vuoto mantiene il catalogo completo. Il modello principale deve appartenere alla selezione. Quando la selezione è attiva, menu, catalogo e richieste sono limitati a quei modelli e i fallback rimangono disattivati. Le chiavi degli altri servizi vengono conservate.
+
+Questa selezione resta locale e non viene modificata da importazione o ripristino delle preferenze. Le voci rimangono separate: il token Hugging Face per Irodori è ancora modificabile in Lingua e voce anche quando Hugging Face non compare fra le connessioni AI. La disponibilità effettiva continua a dipendere dall’account e dal servizio.
+
 ## Se una chiave è salvata ma l’AI non risponde
 
 **Salva e verifica** controlla l’accesso al catalogo; **Prova una risposta** verifica la generazione effettiva. Un catalogo raggiungibile non garantisce credito, quota o permessi sul modello. La verifica del catalogo non cancella un precedente errore di generazione.

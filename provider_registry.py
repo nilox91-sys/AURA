@@ -26,6 +26,25 @@ PROVIDERS = {
 EXTRA_PROVIDERS={'openai','anthropic','mistral','deepseek','lmstudio','compatible'}
 
 
+def visible_providers(settings):
+    allowed=settings.get('ai_model_allowlist',[])
+    if not allowed:return dict(PROVIDERS)
+    ids={value.partition(':')[0] for value in allowed}
+    return {name:info for name,info in PROVIDERS.items() if name in ids}
+
+
+def visible_models(provider,settings,models=()):
+    allowed=settings.get('ai_model_allowlist',[])
+    if not allowed:return list(models)
+    prefix=provider+':'
+    return [value[len(prefix):] for value in allowed if value.startswith(prefix)]
+
+
+def model_allowed(provider,model,settings):
+    allowed=settings.get('ai_model_allowlist',[])
+    return not allowed or provider+':'+model in allowed
+
+
 def provider_key(provider, settings):
     import os
     info=PROVIDERS[provider]

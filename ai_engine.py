@@ -15,7 +15,7 @@ from huggingface_hub import InferenceClient
 from runtime_utils import provider_deadline, provider_timeout
 from dialect_engine import build_dialect_prompt
 from personality import build_personality_prompt, personalization_prompt
-from provider_registry import PROVIDERS, EXTRA_PROVIDERS, provider_key
+from provider_registry import PROVIDERS, EXTRA_PROVIDERS, provider_key, model_allowed, visible_providers
 from preferences import local_endpoint
 from extended_ai import call_extra
 from provider_errors import describe_error
@@ -246,6 +246,11 @@ class LLMEngine:
     def provider_candidates(cls, selected_model, settings):
         keys = cls.provider_keys(settings)
         candidates = []
+        allowed=settings.get('ai_model_allowlist',[])
+        if allowed:
+            if selected_model not in allowed:return []
+            provider,_,model=selected_model.partition(':')
+            return [(provider,model)] if keys.get(provider) else []
         if selected_model and selected_model not in ('auto:free', 'auto'):
             provider, separator, model = selected_model.partition(':')
             if not separator:
@@ -360,6 +365,8 @@ class LLMEngine:
 
     @classmethod
     def call_provider(cls, provider, model_name, messages, settings):
+        if not model_allowed(provider,model_name,settings):
+            raise ValueError('Modello escluso dalla selezione attiva')
         keys = cls.provider_keys(settings)
         if not keys.get(provider):
             raise ValueError('Provider non configurato')
@@ -470,6 +477,8 @@ class LLMEngine:
                               if 'generateContent' in item.get('supportedGenerationMethods', [])]
                 elif provider == 'ollama':
                     models = [item['name'] for item in data.get('models', []) if isinstance(item.get('name'), str)]
+                if settings.get('ai_model_allowlist'):
+                    models=[model for model in models if model_allowed(provider,model,settings)]
                 cls.health.catalog_success(provider, keys, models=models or None)
                 message = 'Accesso verificato; la generazione sarà verificata alla prima richiesta.'
                 if provider == 'ollama':
@@ -481,4 +490,4 @@ class LLMEngine:
                 return {'id': provider, 'state': 'unavailable', 'message': message, 'http_status': code, 'models': []}
 
         with ThreadPoolExecutor(max_workers=5) as pool:
-            return list(pool.map(check, FREE_PROVIDER_MODELS))
+            return list(pool.map(check, [name for name in FREE_PROVIDER_MODELS if name in visible_providers(settings)]))

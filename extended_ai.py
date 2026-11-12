@@ -3,6 +3,7 @@ import json,re
 import requests
 from provider_registry import PROVIDERS,base_url
 from runtime_utils import provider_timeout
+from provider_errors import ProviderHTTPError
 
 
 def request_json(method,url,headers=None,payload=None,timeout=None):
@@ -11,13 +12,17 @@ def request_json(method,url,headers=None,payload=None,timeout=None):
         with session.request(method,url,headers=headers,json=payload,timeout=timeout or provider_timeout(),
                              allow_redirects=False,stream=True) as response:
             if 300<=response.status_code<400:raise requests.HTTPError(response=response)
-            response.raise_for_status()
             chunks=[];size=0
             for block in response.iter_content(65536):
                 size+=len(block)
                 if size>4*1024*1024:raise ValueError('Risposta del servizio troppo grande')
                 chunks.append(block)
-            return json.loads(b''.join(chunks))
+            content=b''.join(chunks)
+            if response.status_code>=400:
+                try:payload=json.loads(content)
+                except ValueError:payload={}
+                raise ProviderHTTPError(response,payload)
+            return json.loads(content)
 
 
 def call_extra(provider,model,messages,settings,options,schema):
@@ -72,9 +77,13 @@ def discover(provider,settings):
         name=name.removeprefix('models/')
         if provider=='gemini' and 'generateContent' not in item.get('supportedGenerationMethods',[]):continue
         if not isinstance(name,str) or not re.fullmatch(r'[\w./:@+-]{1,160}',name):continue
-        if any(word in name.lower() for word in ('embedding','whisper','tts-','realtime','transcribe','dall-e','moderation')):continue
+        if any(word in name.lower() for word in ('embedding','whisper','tts','realtime','transcrib','dall-e','moderation','lyria','robotics','antigravity','deep-research','computer-use','nano-banana','customtools')):continue
+        if provider=='gemini' and 'image' in name.lower():continue
+        modalities=item.get('architecture',{}).get('output_modalities',[])
+        if modalities and 'text' not in modalities:continue
         if item.get('capabilities',{}).get('completion_chat') is False:continue
         models.append(name)
-    models=sorted(set(models))[:2000]
+    preferred=info.get('default')
+    models=sorted(set(models),key=lambda name:(name!=preferred,provider=='gemini' and name.startswith('gemini-2.5-'),name))[:2000]
     return {'id':provider,'state':'available' if models else 'no_models','models':models,
-            'message':f'Connessione verificata · {len(models)} modelli. La generazione si verifica con una prova.' if models else 'Servizio raggiunto; nessun modello disponibile. Puoi indicare un identificativo manualmente.'}
+            'message':f'Catalogo raggiunto · {len(models)} modelli. La quota e la capacità di rispondere si verificano con “Prova una risposta”.' if models else 'Servizio raggiunto; nessun modello disponibile. Puoi indicare un identificativo manualmente.'}

@@ -81,7 +81,7 @@ class AIEngineTests(unittest.TestCase):
             second = self.engine.generate_response('Again', [], self.settings)
         self.assertEqual(call.call_count, 1)
         self.assertEqual(result[2], 'offline')
-        self.assertIn('riprova tra', second[0])
+        self.assertIn('Verifica di aver usato una chiave API', second[0])
         self.assertNotIn('sensitive-error-body', result[0])
 
     def test_new_key_bypasses_old_auth_cooldown(self):

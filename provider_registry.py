@@ -5,7 +5,7 @@ PROVIDERS = {
  'groq':dict(label='Groq',key='groq_api_key',base='https://api.groq.com/openai/v1',
     keys_url='https://console.groq.com/keys',default='openai/gpt-oss-20b',kind='cloud',note='Risposte rapide. Disponibilità e quota dipendono dal tuo account.'),
  'gemini':dict(label='Google Gemini',key='gemini_api_key',base='https://generativelanguage.googleapis.com/v1beta',
-    keys_url='https://aistudio.google.com/apikey',default='gemini-2.5-flash',kind='cloud',note='Modelli Google. Usa la chiave di AI Studio; verifica quote e condizioni del tuo piano.'),
+    keys_url='https://aistudio.google.com/apikey',default='gemini-3.1-flash-lite',kind='cloud',note='Modelli Google. Usa la chiave di AI Studio; verifica quote e condizioni del tuo piano. I modelli 2.5 possono comparire nel catalogo ma essere dismessi per i nuovi account.'),
  'huggingface':dict(label='Hugging Face',key='hf_api_key',base='https://router.huggingface.co/v1',
     keys_url='https://huggingface.co/settings/tokens',default='openai/gpt-oss-120b',kind='cloud',note='Inference Providers. Lo stesso campo token è usato dalla voce Irodori; la verifica AI è separata dalla quota vocale.'),
  'openai':dict(label='OpenAI',key='openai_api_key',base='https://api.openai.com/v1',

@@ -10,12 +10,12 @@ provider_deadline = ContextVar('provider_deadline', default=None)
 cache_lock = RLock()
 
 
-def provider_timeout():
+def provider_timeout(read_limit=18):
     deadline = provider_deadline.get()
     remaining = 20 if deadline is None else deadline - time.monotonic()
     if remaining <= 0:
         raise TimeoutError('Tempo massimo provider raggiunto.')
-    return (min(3, remaining), min(18, remaining))
+    return (min(3, remaining), min(read_limit, remaining))
 
 
 def cache_audio(path, content, max_bytes=128*1024*1024):

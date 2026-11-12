@@ -21,11 +21,20 @@ def register_settings_api(app,manager,defaults,cache_dir):
         try:
             result=discover(provider,settings)
             if result['state']=='available':
-                LLMEngine.health.success(provider,keys,models=result['models'],verified=True)
+                LLMEngine.health.catalog_success(provider,keys,result['models'])
+            result['generation']=LLMEngine.health.status(provider,keys)
             return jsonify(result)
         except Exception as error:
             message,code=LLMEngine.health.failure(provider,keys,'*',error)
-            return jsonify(id=provider,state='unavailable',message=message,http_status=code,models=[]),502
+            detail=LLMEngine.health.status(provider,keys)
+            return jsonify(id=provider,state='unavailable',error=message+' '+detail['action'],message=message,http_status=code,details=detail,models=[]),502
+
+    @api.get('/api/integrations/status')
+    def integration_status():
+        provider=request.args.get('provider');model=request.args.get('model')
+        if provider not in PROVIDERS:return jsonify(error='Servizio non riconosciuto.'),400
+        keys=LLMEngine.provider_keys(manager.get_all())
+        return jsonify(LLMEngine.health.status(provider,keys,model))
 
     @api.post('/api/integrations/test')
     def test():
@@ -36,7 +45,7 @@ def register_settings_api(app,manager,defaults,cache_dir):
             return jsonify(error='Seleziona un servizio e un modello validi.'),400
         settings=manager.get_all();keys=LLMEngine.provider_keys(settings)
         if not keys.get(provider):return jsonify(error='Configura prima il servizio.'),400
-        options=generation_options.set({'max_tokens':512,'reasoning_effort':'low'})
+        options=generation_options.set({'max_tokens':1024 if provider=='gemini' else 512,'reasoning_effort':'low'})
         deadline=provider_deadline.set(time.monotonic()+30);trace=generation_info.set({})
         started=time.perf_counter()
         try:
@@ -48,7 +57,8 @@ def register_settings_api(app,manager,defaults,cache_dir):
             return jsonify(status='success',message=text[:500],latency_ms=round((time.perf_counter()-started)*1000))
         except Exception as error:
             message,code=LLMEngine.health.failure(provider,keys,model,error)
-            return jsonify(status='error',error=message,http_status=code),502
+            detail=LLMEngine.health.status(provider,keys,model)
+            return jsonify(status='error',error=message+' '+detail['action'],http_status=code,details=detail),502
         finally:
             generation_options.reset(options);provider_deadline.reset(deadline);generation_info.reset(trace)
 

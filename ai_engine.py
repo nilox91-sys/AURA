@@ -18,6 +18,7 @@ from personality import build_personality_prompt, personalization_prompt
 from provider_registry import PROVIDERS, EXTRA_PROVIDERS, provider_key
 from preferences import local_endpoint
 from extended_ai import call_extra
+from provider_errors import describe_error
 
 logger = logging.getLogger('Aura.AI')
 generation_info = ContextVar('generation_info', default=None)
@@ -31,7 +32,7 @@ REPLY_SCHEMA = {
 }
 FREE_PROVIDER_MODELS = {
     'groq': ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b'],
-    'gemini': ['gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash-lite', 'gemini-2.5-flash'],
+    'gemini': ['gemini-3.1-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.5-flash'],
     'openrouter': ['openrouter/free'],
     'huggingface': ['openai/gpt-oss-120b', 'Qwen/Qwen3-4B-Thinking-2507', 'google/gemma-2-2b-it'],
     'ollama': ['qwen2.5', 'llama3.2'],
@@ -86,23 +87,35 @@ class ProviderState:
         return None
 
     def failure(self, provider, keys, model, error):
-        response = getattr(error, 'response', None)
-        code = getattr(response, 'status_code', None)
-        labels = {400: 'Richiesta non accettata', 401: 'Chiave non accettata',
-                  403: 'Accesso negato dal servizio', 404: 'Modello non disponibile',
-                  429: 'Limite di utilizzo raggiunto'}
-        label = labels.get(code, 'Servizio temporaneamente non raggiungibile')
-        seconds = 120 if code in (401, 403) else 180 if code == 404 else 15
-        if code == 429:
-            try:
-                seconds = max(5, min(120, int(response.headers.get('Retry-After', 30))))
-            except (TypeError, ValueError):
-                seconds = 30
-        target = '*' if code in (401, 403) or isinstance(error, requests.ConnectionError) else model
+        detail = describe_error(provider,error)
+        label, code = detail['message'], detail['http_status']
+        target = '*' if detail['provider_wide'] else model
+        scope = self.scope(provider,keys)
         with self.lock:
-            self.blocks[(provider, self.scope(provider, keys), target)] = {
-                'until': time.monotonic() + seconds, 'message': label, 'http_status': code}
+            self.blocks[(provider, scope, target)] = {**detail,'until': time.monotonic()+detail['seconds']}
+            self.checks[(provider,scope)] = {'state':'generation_failed','model':model,'checked_at':datetime.now().isoformat(timespec='seconds'),'error':detail}
         return label, code
+
+    def catalog_success(self, provider, keys, models):
+        """A readable catalog does not prove generation, credit or model permission."""
+        scope=self.scope(provider,keys)
+        with self.lock:
+            previous=self.checks.get((provider,scope),{})
+            self.checks[(provider,scope)]={**previous,'state':previous.get('state','catalog_available'),
+                'catalog_checked_at':datetime.now().isoformat(timespec='seconds')}
+            if models is not None:self.catalogs[(provider,scope)]=(time.monotonic(),list(models))
+
+    def status(self, provider, keys, model=None):
+        blocked=self.blocked(provider,keys,model)
+        with self.lock:check=dict(self.checks.get((provider,self.scope(provider,keys)),{}))
+        if model and check.get('model') and model!=check['model'] and not check.get('error',{}).get('provider_wide'):
+            check={}
+        error=blocked or check.get('error') or {}
+        return {'id':provider,'state':'cooldown' if blocked else check.get('state','unchecked'),
+                'message':error.get('message',''),'action':error.get('action',''),
+                'kind':error.get('kind'),'http_status':error.get('http_status'),
+                'suggested_model':error.get('suggested_model'),'reset_at':error.get('reset_at'),
+                'retry_after':blocked['retry_after'] if blocked else 0,'generation_verified':check.get('state')=='available'}
 
     def success(self, provider, keys, models=None, verified=False, model=None):
         scope = self.scope(provider, keys)
@@ -110,7 +123,7 @@ class ProviderState:
             self.blocks = {key: value for key, value in self.blocks.items()
                            if not (key[:2] == (provider, scope) and (verified or key[2] in ('*', model)))}
             self.checks[(provider, scope)] = {'state': 'available', 'checked_at': datetime.now().isoformat(timespec='seconds'),
-                                              'verified': verified}
+                                              'verified': verified,'model':model}
             if models is not None:
                 self.catalogs[(provider, scope)] = (time.monotonic(), list(models))
 
@@ -128,7 +141,7 @@ class ProviderState:
                 check = self.checks.get((provider, self.scope(provider, keys)), {})
             result.append({'id': provider, 'configured': configured,
                            'state': 'not_configured' if not configured else 'cooldown' if blocked else check.get('state', 'unchecked'),
-                           'message': blocked['message'] if blocked else '',
+                           'message': blocked['message'] if blocked else check.get('error',{}).get('message',''),
                            'retry_after': blocked['retry_after'] if blocked else 0,
                            'checked_at': check.get('checked_at'), 'models': self.catalog(provider, keys)})
         return result
@@ -251,14 +264,14 @@ class LLMEngine:
             if mode == 'reasoning' and provider == 'groq':
                 models = [models[2], models[1], models[0]]
             elif mode == 'reasoning' and provider == 'gemini':
-                models = [models[1], models[0]]
+                models = [models[2], models[0]]
             elif mode == 'balanced' and provider == 'groq':
                 models = [models[1], models[0], models[2]]
             catalog = cls.health.catalog(provider, keys)
             if catalog and provider in ('groq', 'gemini'):
                 models = [model for model in models if model in catalog]
             candidates.extend((provider, model) for model in models[:2])
-        local_models = cls.health.catalog('ollama', keys) or FREE_PROVIDER_MODELS['ollama'][:1]
+        local_models = cls.health.catalog('ollama', keys)
         candidates.extend(('ollama', model) for model in local_models[:1])
         candidates = list(dict.fromkeys(candidates))
         return candidates if settings.get('allow_fallback', True) else candidates[:1]
@@ -306,8 +319,11 @@ class LLMEngine:
         payload = {'contents': contents, 'systemInstruction': {'parts': [{'text': system}]},
                    'generationConfig': {'temperature': cls.options().get('temperature',0.45), 'maxOutputTokens': cls.options()['max_tokens'],
                                         'responseMimeType': 'application/json', 'responseSchema': schema}}
+        if model_name in {'gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-3.8-flash'}:
+            level='medium' if cls.options().get('reasoning_effort')=='medium' else ('low' if model_name=='gemini-3.8-flash' else 'minimal')
+            payload['generationConfig']['thinkingConfig']={'thinkingLevel':level}
         response = requests.post(f'https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent',
-            headers={'Content-Type': 'application/json', 'x-goog-api-key': api_key}, json=payload, timeout=provider_timeout())
+            headers={'Content-Type': 'application/json', 'x-goog-api-key': api_key}, json=payload, timeout=provider_timeout(40))
         response.raise_for_status()
         candidate = response.json()['candidates'][0]
         if candidate.get('finishReason') == 'MAX_TOKENS':
@@ -387,7 +403,7 @@ class LLMEngine:
                 blocked = cls.health.blocked(provider, keys, model)
                 if blocked:
                     info['skipped'] += 1
-                    notices.append(f'{provider}: {blocked["message"]}; riprova tra {blocked["retry_after"]} s')
+                    notices.append(f'{provider}: {blocked["message"]} {blocked.get("action", "")}')
                     continue
                 for repair in range(2):
                     info['attempts'] += 1
@@ -409,14 +425,15 @@ class LLMEngine:
                         break
                     except Exception as error:
                         label, code = cls.health.failure(provider, keys, model, error)
-                        notices.append(f'{provider}: {label}' + (f' ({code})' if code else ''))
+                        detail=cls.health.status(provider,keys,model)
+                        notices.append(f'{provider}: {label}' + (f' (HTTP {code})' if code else '') + f' {detail["action"]}')
                         logger.warning('Provider %s (%s): %s, HTTP %s', provider, model, type(error).__name__, code)
                         break
                 generation_options.set(base_options)
         finally:
             generation_options.reset(options)
             provider_deadline.reset(deadline)
-        configured = any(keys.get(provider) for provider in ('groq', 'gemini', 'openrouter', 'huggingface'))
+        configured = any(keys.get(provider) for provider,info in PROVIDERS.items() if info['kind']=='cloud')
         message = ('Nessun servizio AI ha completato la risposta. ' if configured else
                    'Configura una chiave API nelle impostazioni oppure avvia un modello Ollama locale. ')
         if notices:
@@ -453,7 +470,7 @@ class LLMEngine:
                               if 'generateContent' in item.get('supportedGenerationMethods', [])]
                 elif provider == 'ollama':
                     models = [item['name'] for item in data.get('models', []) if isinstance(item.get('name'), str)]
-                cls.health.success(provider, keys, models=models or None, verified=True)
+                cls.health.catalog_success(provider, keys, models=models or None)
                 message = 'Accesso verificato; la generazione sarà verificata alla prima richiesta.'
                 if provider == 'ollama':
                     message = f'{len(models)} modelli locali installati.' if models else 'Ollama avviato, ma nessun modello installato.'

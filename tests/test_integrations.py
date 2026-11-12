@@ -65,6 +65,23 @@ class IntegrationTests(unittest.TestCase):
                        {'tts_cache_mb':1},{'theme':'bad'},{'custom_instructions':'x'*3001}):
             with self.assertRaises(ValueError):self.manager.update(values)
 
+    def test_catalog_recheck_does_not_clear_generation_credit_failure(self):
+        from ai_engine import ProviderState
+        from test_provider_errors import failure
+        with patch.object(LLMEngine,'health',ProviderState()):
+            self.manager.update({'deepseek_api_key':'private'})
+            with patch.object(LLMEngine,'call_provider',side_effect=failure(402)):
+                response=self.client.post('/api/integrations/test',json={'provider':'deepseek','model':'deepseek-flash'})
+            self.assertEqual(response.json['details']['kind'],'balance')
+            self.assertIn('Credito',response.json['error'])
+            with patch('settings_api.discover',return_value={'id':'deepseek','state':'available','models':['deepseek-flash'],'message':'Catalogo'}):
+                response=self.client.post('/api/integrations/check',json={'provider':'deepseek'})
+            self.assertEqual(response.json['generation']['kind'],'balance')
+            self.assertFalse(response.json['generation']['generation_verified'])
+            status=self.client.get('/api/integrations/status?provider=deepseek&model=deepseek-flash')
+            self.assertEqual(status.json['kind'],'balance')
+            self.assertNotIn(b'private',status.data)
+
     def test_cache_clear_only_removes_hash_audio(self):
         (self.root/('a'*64+'.wav')).write_bytes(b'audio');(self.root/'important.wav').write_bytes(b'keep')
         self.assertEqual(self.client.get('/api/audio-cache').json['files'],1)

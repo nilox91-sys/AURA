@@ -40,6 +40,14 @@
         node('model-id').value=modelValues[selected]??providers[selected]?.default??'';
         node('model-catalog').replaceChildren();node('connection-result').textContent='';
         node('model-note').textContent='Verifica per leggere il catalogo, oppure inserisci un identificativo. Il catalogo non garantisce quote o permessi di generazione.';
+        if(selected!=='auto') {
+            const provider=selected,model=value('model-id');
+            fetch('/api/integrations/status?'+new URLSearchParams({provider,model})).then(r=>r.json()).then(data=>{
+                if(selected!==provider||value('model-id')!==model||(!data.message&&!data.generation_verified))return;
+                node('connection-result').dataset.state=data.generation_verified?'success':'error';
+                node('connection-result').textContent=data.generation_verified?'Ultima prova di risposta riuscita con questo modello.':data.message+' '+(data.action||'');
+            }).catch(()=>{});
+        }
     }
     function setModel(model) {
         const pos=model.indexOf(':');let provider=pos<0?'huggingface':model.slice(0,pos);
@@ -59,7 +67,7 @@
     }
     async function request(url,data,timeout=40000) {
         const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),signal:AbortSignal.timeout(timeout)});
-        const body=await res.json();if(!res.ok)throw new Error(body.error||body.message||'Operazione non riuscita.');return body;
+        const body=await res.json();if(!res.ok){const error=new Error(body.error||body.message||'Operazione non riuscita.');error.details=body.details;throw error;}return body;
     }
     async function saveForm() {
         if(saving)return saving;
@@ -140,18 +148,28 @@
     form.addEventListener('submit',async event=>{event.preventDefault();await saveForm();});
     async function providerAction(test) {
         const output=node('connection-result'),button=node(test?'test-provider':'verify-provider');button.disabled=true;
+        const provider=selected,model=value('model-id');
         try {
             if(test && !value('model-id'))throw new Error('Scegli prima il modello da provare.');
             if(!await saveForm())return;
             output.dataset.state='loading';output.textContent=test?'Provo una breve risposta…':'Verifico il collegamento…';
-            const result=await request(test?'/api/integrations/test':'/api/integrations/check',{provider:selected,model:value('model-id')});
-            output.dataset.state=result.state==='not_configured'?'error':'success';output.textContent=result.message+(result.latency_ms?' · '+(result.latency_ms/1000).toFixed(1)+' s':'');
+            const result=await request(test?'/api/integrations/test':'/api/integrations/check',{provider,model});
+            if(selected!==provider||value('model-id')!==model)return;
+            output.dataset.state=result.state==='not_configured'?'error':test?'success':'warning';output.textContent=result.message+(result.latency_ms?' · '+(result.latency_ms/1000).toFixed(1)+' s':'');
+            if(!test && result.generation?.message)output.textContent+=' Ultima prova: '+result.generation.message+' '+(result.generation.action||'');
             if(result.models) {
                 node('model-catalog').replaceChildren(...result.models.map(model=>new Option(model,model)));
                 node('model-note').textContent=result.models.length+' modelli nel catalogo. Digita per cercare; puoi scrivere anche un altro identificativo.';
                 if(!value('model-id') && result.models.length){node('model-id').value=result.models[0];saveState('Modello trovato · salva per usarlo','dirty');}
+                if(selected==='gemini' && value('model-id').startsWith('gemini-2.5-'))output.textContent+=' I modelli 2.5 possono essere dismessi per i nuovi account: prova Gemini 3.1 Flash Lite.';
             }
-        }catch(error){output.dataset.state='error';output.textContent=error.name==='TimeoutError'?'Il servizio ha impiegato troppo tempo. Riprova.':error.message;}
+        }catch(error){if(selected!==provider||value('model-id')!==model)return;
+            output.dataset.state='error';output.textContent=error.name==='TimeoutError'?'Il servizio ha impiegato troppo tempo. Riprova.':error.message;
+            if(error.details?.suggested_model && selected==='gemini') {
+                const button=document.createElement('button');button.type='button';button.className='soft-button';button.textContent='Usa '+error.details.suggested_model;
+                button.addEventListener('click',()=>{node('model-id').value=error.details.suggested_model;saveState('Modello aggiornato · salva o prova una risposta','dirty');});output.append(document.createElement('br'),button);
+            }
+        }
         finally{button.disabled=false;}
     }
     node('verify-provider').addEventListener('click',()=>providerAction(false));node('test-provider').addEventListener('click',()=>providerAction(true));

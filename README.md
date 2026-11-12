@@ -26,6 +26,23 @@ Su altri sistemi: `python tools/prepare_avatar.py`, poi `python run.py`. Le funz
 
 I provider a consumo aggiunti non sono fallback automatici. Le alternative possono usare solo i servizi già previsti (Groq, Gemini, OpenRouter, Hugging Face, Ollama); disponibilità e tariffe dipendono dai modelli. Ollama e LM Studio selezionati esplicitamente, e gli endpoint compatibili locali, non passano al cloud. GitHub sign-in non fornisce chiavi AI.
 
+## Se una chiave è salvata ma l’AI non risponde
+
+**Salva e verifica** controlla l’accesso al catalogo; **Prova una risposta** verifica la generazione effettiva. Un catalogo raggiungibile non garantisce credito, quota o permessi sul modello. La verifica del catalogo non cancella un precedente errore di generazione.
+
+| Errore | Significato e prossimo passo |
+| --- | --- |
+| 401 | Chiave non accettata: verifica servizio e chiave. |
+| 402 | Credito esaurito o non attivato: verifica il saldo oppure scegli un altro servizio. Generare un’altra chiave dello stesso account non aggiunge credito. |
+| 403 | Accesso negato: controlla permessi e restrizioni di account/rete. |
+| 404 | Modello non disponibile: seleziona un modello attuale; quando possibile AURA mostra il suggerimento del servizio. |
+| 429 | Quota o frequenza superata: attendi il ripristino. La quota giornaliera OpenRouter gratuita riguarda l’account, quindi cambiare modello gratuito non la ripristina. |
+| 503 | Servizio sovraccarico: attendi o prova un altro modello. |
+
+Per Gemini la scelta iniziale è **gemini-3.1-flash-lite**; alcuni modelli 2.5 ancora elencati nel catalogo non sono accessibili ai nuovi account. Le varianti Lite attuali usano un livello di ragionamento minimo nei profili rapidi/bilanciati, con un’attesa compatibile con il budget della richiesta.
+
+Fonti: [errori DeepSeek](https://api-docs.deepseek.com/quick_start/error_codes/), [credito Hugging Face](https://huggingface.co/docs/inference-providers/main/pricing), [limiti OpenRouter](https://openrouter.ai/collections/free-models), [errori Gemini](https://ai.google.dev/gemini-api/docs/generate-content/api-errors).
+
 ## Voci e stanza vocale
 
 La voce di base usa Edge online. Le voci sul PC sono opzionali: **PREPARA_QWEN_TTS.bat** e **PREPARA_VOCE_LOCALE.bat** scaricano modelli e ambienti separati in `%LOCALAPPDATA%/AURA/voices`. Non sono inclusi nel repository. Qwen usa il modello **0.6B Base** e riferimenti sintetici Irodori; non installa i modelli 1.7B.

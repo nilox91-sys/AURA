@@ -19,6 +19,8 @@ from provider_registry import PROVIDERS, EXTRA_PROVIDERS, provider_key, model_al
 from preferences import local_endpoint
 from extended_ai import call_extra
 from provider_errors import describe_error
+from provider_stream import stream_provider, StreamIncompleteError
+from reply_stream import ReplyDecoder
 
 logger = logging.getLogger('Aura.AI')
 generation_info = ContextVar('generation_info', default=None)
@@ -60,6 +62,11 @@ OPERATOR_SYSTEM_PROMPT = (
 
 
 class IncompleteResponseError(ValueError):
+    pass
+
+
+class PartialResponseError(ValueError):
+    """An answer already reached the user: never replace or replay it automatically."""
     pass
 
 
@@ -383,6 +390,81 @@ class LLMEngine:
         method = {'groq': cls.call_groq, 'gemini': cls.call_gemini, 'openrouter': cls.call_openrouter,
                   'ollama': cls.call_ollama, 'huggingface': cls.call_huggingface}[provider]
         return method(keys[provider], model_name, messages)
+
+    @classmethod
+    def stream_response(cls, user_message, history, user_settings):
+        messages, context = cls.build_messages(user_message, history, user_settings)
+        mode = user_settings.get('ai_mode', 'balanced')
+        cap = user_settings.get('max_response_tokens', 2048)
+        if user_settings.get('response_style') == 'concise':
+            cap = min(cap, 1024)
+        info = {'mode': mode, 'context': context, 'attempts': 0, 'skipped': 0, 'streaming': True}
+        generation_info.set(info)
+        started = time.perf_counter()
+        deadline = provider_deadline.set(time.monotonic() + user_settings.get('ai_timeout_seconds', 65))
+        base_options = {'max_tokens': cap, 'reasoning_effort': 'medium' if mode == 'reasoning' else 'low',
+                        'temperature': {'precise': .2, 'balanced': .45, 'creative': .8}.get(user_settings.get('creativity'), .45)}
+        options = generation_options.set(base_options)
+        keys = cls.provider_keys(user_settings)
+        notices = []
+        try:
+            for provider, model in cls.provider_candidates(user_settings.get('model', 'auto:free'), user_settings):
+                if time.monotonic() >= provider_deadline.get():
+                    break
+                blocked = cls.health.blocked(provider, keys, model)
+                if blocked:
+                    info['skipped'] += 1
+                    notices.append(f'{provider}: {blocked["message"]} {blocked.get("action", "")}')
+                    continue
+                for repair in range(2):
+                    decoder = ReplyDecoder()
+                    visible = False
+                    info['attempts'] += 1
+                    for key in ('usage', 'finish_reason', 'stream_finished', 'resolved_model'):
+                        info.pop(key, None)
+                    upstream = stream_provider(provider, model, messages, user_settings, cls.options(), REPLY_SCHEMA, info)
+                    try:
+                        for raw_delta in upstream:
+                            delta = decoder.feed(raw_delta)
+                            if delta:
+                                if not visible:
+                                    info['first_text_ms'] = round((time.perf_counter() - started) * 1000)
+                                visible = True
+                                yield {'event': 'delta', 'text': delta, 'emozione': decoder.emotion,
+                                       'provider': provider, 'model': model}
+                        text, emotion = cls.parse_json_response(decoder.raw)
+                        if not text:
+                            raise ValueError('Risposta vuota')
+                        if not text.startswith(decoder.text.rstrip()):
+                            raise ValueError('Risposta finale incoerente')
+                        if not visible:
+                            info['first_text_ms'] = round((time.perf_counter() - started) * 1000)
+                            yield {'event': 'delta', 'text': text, 'emozione': emotion, 'provider': provider, 'model': model}
+                        cls.health.success(provider, keys, model=model)
+                        yield {'event': 'done', 'status': 'success', 'response': text, 'emozione': emotion,
+                               'provider': provider, 'model': model, 'ai': dict(info)}
+                        return
+                    except Exception as error:
+                        if visible:
+                            cls.health.failure(provider, keys, model, error)
+                            raise PartialResponseError('La risposta si è interrotta. Il testo ricevuto è parziale; riprova.') from None
+                        if isinstance(error, (StreamIncompleteError, IncompleteResponseError)) and repair == 0 and cap < 8192:
+                            generation_options.set({**base_options, 'max_tokens': min(8192, cap * 2), 'reasoning_effort': 'low'})
+                            continue
+                        label, code = cls.health.failure(provider, keys, model, error)
+                        detail = cls.health.status(provider, keys, model)
+                        notices.append(f'{provider}: {label} {detail["action"]}')
+                        logger.warning('Provider streaming %s (%s): %s, HTTP %s', provider, model, type(error).__name__, code)
+                        break
+                    finally:
+                        upstream.close()
+                generation_options.set(base_options)
+            message = 'Nessun servizio AI ha completato la risposta. '
+            message += '; '.join(dict.fromkeys(notices)) if notices else 'Verifica la connessione nelle impostazioni.'
+            yield {'event': 'error', 'status': 'error', 'error': message, 'provider': 'offline'}
+        finally:
+            generation_options.reset(options)
+            provider_deadline.reset(deadline)
 
     @classmethod
     def generate_response(cls, user_message, history, user_settings):

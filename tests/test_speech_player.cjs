@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {SpeechPlayer, split, clean} = require('../static/js/speech-player.js');
+const {SpeechPlayer, SentenceBuffer, split, clean} = require('../static/js/speech-player.js');
 global.CustomEvent = class {constructor(type, data) {this.type=type;this.detail=data.detail;}};
 global.dispatchEvent = () => {};
 global.requestAnimationFrame = () => 1;global.cancelAnimationFrame = () => {};
@@ -58,4 +58,31 @@ test('provider failures do not silently change the selected voice',async()=>{
     const player=new SpeechPlayer({tts_engine:'qwen'});const paths=[];
     global.fetch=async path=>{paths.push(path);return streamed([{event:'error',error:'Riprova'}]);};
     await assert.rejects(player.speak('Jamme.'),/Riprova/);assert.deepEqual(paths,['/api/tts/stream']);
+});
+test('first sentence starts synthesis and playback before the answer is finished',async()=>{
+    const player=new SpeechPlayer({tts_engine:'qwen'});const requests=[];
+    global.fetch=async(path,options)=>{requests.push(JSON.parse(options.body).text);return streamed([audio,{event:'done'}]);};
+    const reading=player.startStream('felice');
+    reading.append('Jamme, ecco la prima frase. ');
+    await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r));
+    assert.deepEqual(requests,['Jamme, ecco la prima frase.']);assert.equal(player.context.played,1);
+    assert.equal(player.active,true);
+    reading.append('Chesta è la seconda frase.');await reading.finish();
+    assert.deepEqual(requests,['Jamme, ecco la prima frase.','Chesta è la seconda frase.']);
+    assert.equal(player.context.played,2);assert.equal(player.active,false);
+});
+test('streamed sentences preserve decimals, abbreviations, split links and code fences',()=>{
+    const text='Il dott. Rossi usa la versione 3.14. Guarda [il sito](https://example.com). Ecco il codice:\n```py\nprint("Ciao. Prova!")\n```\nJamme, continuiamo.';
+    const buffer=new SentenceBuffer();let chunks=[];
+    for (const char of text) chunks.push(...buffer.append(char));
+    chunks.push(...buffer.append('',true));
+    assert.equal(chunks.join(' '),clean(text));
+    assert.ok(!chunks.some(c=>c==='Il dott.'||c.includes('print(')));
+});
+test('cancelling a live sentence queue prevents later text from restarting audio',async()=>{
+    const player=new SpeechPlayer({tts_engine:'qwen'});
+    global.fetch=async()=>streamed([audio,{event:'done'}]);
+    const reading=player.startStream();reading.append('Prima frase. ');await new Promise(r=>setImmediate(r));
+    player.stop();assert.throws(()=>reading.append('Non leggere.'),{name:'AbortError'});
+    await assert.rejects(reading.done,{name:'AbortError'});assert.equal(player.active,false);
 });

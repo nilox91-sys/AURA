@@ -74,16 +74,35 @@
     async function answer(text, current) {
         lastReply = null;
         state('thinking', 'Ci penso…', 'Metto insieme le idee.');
-        controller = new AbortController();
-        const timeout = setTimeout(() => controller?.abort(), ((settings.ai_timeout_seconds || 65) + 20) * 1000);
+        const requestController = new AbortController(); controller = requestController;
+        const timeout = setTimeout(() => requestController.abort(), ((settings.ai_timeout_seconds || 65) + 20) * 1000);
+        const signal = requestController.signal;
+        let liveSpeech = null, speechFailure = null;
         try {
             const response = await fetch('/api/chat', {method:'POST', headers:{'Content-Type':'application/json'},
-                body:JSON.stringify({message:text,mode:'voice'}), signal:controller.signal});
-            const data = await response.json();
-            if (!response.ok || data.status !== 'success') throw new Error(data.error || 'Risposta non disponibile.');
+                body:JSON.stringify({message:text,mode:'voice',stream:true}), signal});
+            const data = await window.AuraChat.readAnswer(response, event => {
+                if (!active || current !== run || event.event !== 'delta' || speechFailure) return;
+                if (!liveSpeech) {
+                    liveSpeech = player.startStream(event.emozione || 'normale');
+                    liveSpeech.done.catch(error => { speechFailure = error; });
+                }
+                try { liveSpeech.append(event.text, event.emozione || 'normale'); }
+                catch (error) { speechFailure = error; }
+            }, signal);
             if (!active || current !== run) return;
-            await say({text:data.response,emotion:data.emozione || 'normale'}, current);
+            // AI timeout covers generation only; playback has its own per-segment deadline.
+            clearTimeout(timeout);
+            lastReply = {text:data.response, emotion:data.emozione || 'normale'};
+            retry.hidden = true;
+            if (speechFailure) throw speechFailure;
+            if (!liveSpeech) throw new Error('Non ho ricevuto testo da leggere. Riprova.');
+            await liveSpeech.finish();
+            if (active && current === run) {
+                if (settings.voice_auto_listen === false) stop('Quando vuoi, avvia di nuovo la voce.'); else listen();
+            }
         } catch (error) {
+            liveSpeech?.cancel();
             if (active && current === run) fail(error.name === 'AbortError' ? 'La risposta ha impiegato troppo tempo. Riprova.' : error.message);
         } finally { clearTimeout(timeout); }
     }

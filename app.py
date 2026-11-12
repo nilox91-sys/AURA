@@ -540,6 +540,56 @@ def clear_chat_api():
     except Exception as e:
         return jsonify({"status": "error", "error": str(e)}), 500
 
+def chat_stream_response(message, voice_mode, started_at):
+    """Own the conversation lock until EOF or client disconnect; save only complete turns."""
+    released = False
+
+    def release():
+        nonlocal released
+        if not released:
+            released = True
+            chat_lock.release()
+
+    current = settings_manager.get_all()
+    keep_history = current.get('history_enabled', True)
+    try:
+        history = get_active_chat_history(limit=200) if keep_history else []
+    except Exception:
+        release()
+        raise
+
+    def events():
+        upstream = LLMEngine.stream_response(message, history, {**current, 'voice_mode': voice_mode})
+        try:
+            yield json.dumps({'event': 'start'}) + '\n'
+            for event in upstream:
+                if event['event'] == 'done':
+                    if keep_history:
+                        conn = db_manager._get_connection()
+                        try:
+                            with conn:
+                                conn.executemany('INSERT INTO chat_history (role, content) VALUES (?, ?)',
+                                                 [('user', message), ('bot', event['response'])])
+                        finally:
+                            conn.close()
+                    event = {**event, 'latency_ms': round((time.perf_counter() - started_at) * 1000),
+                             'memory_count': db_manager.get_message_count()}
+                yield json.dumps(event, ensure_ascii=False) + '\n'
+        except Exception as error:
+            from ai_engine import PartialResponseError
+            message_text = str(error) if isinstance(error, PartialResponseError) else 'La risposta si è interrotta. Riprova tra poco.'
+            logger.warning('Conversazione progressiva: %s', type(error).__name__)
+            yield json.dumps({'event': 'error', 'status': 'error', 'error': message_text}) + '\n'
+        finally:
+            upstream.close()
+            release()
+
+    response = Response(stream_with_context(events()), mimetype='application/x-ndjson',
+                        headers={'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no'})
+    response.call_on_close(release)
+    return response
+
+
 @app.route("/api/chat", methods=["POST"])
 def chat_api():
     started_at = time.perf_counter()
@@ -557,6 +607,8 @@ def chat_api():
 
     if not chat_lock.acquire(blocking=False):
         return jsonify(status='error', error='Una risposta è già in corso. Riprova tra poco.'), 409
+    if dati.get('stream') is True:
+        return chat_stream_response(msg_clean, dati.get('mode') == 'voice', started_at)
     try:
         keep_history = settings_manager.get('history_enabled',True)
         history = get_active_chat_history(limit=200) if keep_history else []

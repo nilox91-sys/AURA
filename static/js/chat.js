@@ -264,20 +264,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const controller = new AbortController();
         const timeout = window.setTimeout(() => controller.abort(), ((settings.ai_timeout_seconds || 65) + 20) * 1000);
+        let partial = '', liveSpeech = null, speechStarted = false, speechStopped = false;
+        const speechError = error => {
+            speechStopped = true;
+            liveSpeech?.cancel();
+            if (error.name !== 'AbortError') window.showToast(error.message || 'Voce non disponibile. Il testo continua ad arrivare.', 'error');
+        };
 
         try {
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({message: text}),
+                body: JSON.stringify({message: text, stream: true}),
                 signal: controller.signal
             });
-            const data = await response.json().catch(() => ({}));
-            if (!response.ok || data.status !== 'success') {
-                throw new Error(data.error || `Errore del sistema (${response.status})`);
+            const data = await window.AuraChat.readAnswer(response, event => {
+                if (event.event !== 'delta') return;
+                partial += event.text;
+                const content = typing.querySelector('.msg-content');
+                content.textContent = partial; content.style.whiteSpace = 'pre-wrap';
+                scrollToLatest(false);
+                if (voiceEnabled && !speechStopped) {
+                    if (!speechStarted) {
+                        speechStarted = true;
+                        liveSpeech = player.startStream(event.emozione || 'normale');
+                        liveSpeech.done.catch(speechError);
+                    }
+                    try { liveSpeech.append(event.text, event.emozione || 'normale'); }
+                    catch (error) { speechError(error); }
+                }
+            }, controller.signal);
+            if (liveSpeech && !speechStopped) {
+                try { liveSpeech.finish().catch(() => {}); } catch (error) { speechError(error); }
             }
 
             addMessage('bot', data.response, {
+                speak: false,
                 emotion: data.emozione,
                 latency: data.latency_ms,
                 provider: data.provider,
@@ -289,6 +311,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 memoryCount.textContent = data.memory_count;
             }
         } catch (error) {
+            liveSpeech?.cancel();
+            if (partial) addMessage('bot', partial, {speak: false, isError: true, track: false});
             const message = error.name === 'AbortError'
                 ? 'La risposta sta impiegando troppo tempo. Riprova tra poco.'
                 : error.message;

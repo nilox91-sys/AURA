@@ -21,6 +21,64 @@
         return result;
     }
     const aborted = () => new DOMException('Lettura interrotta', 'AbortError');
+    class SentenceBuffer {
+        constructor(limit = 240) { this.pending = ''; this.limit = limit; this.total = 0; }
+        append(text, final = false) {
+            this.total += text.length;
+            if (this.total > 24000) throw new Error('Risposta troppo lunga da leggere. Chiedi una sintesi.');
+            this.pending += text;
+            const result = [];
+            // Do not split inside code, links or URLs, even if their punctuation has arrived.
+            const safe = cut => {
+                const prefix = this.pending.slice(0, cut);
+                if ((prefix.match(/```/g) || []).length % 2) return false;
+                if (/`{1,2}$/.test(prefix)) return false;
+                const bracket = prefix.lastIndexOf('[');
+                if (bracket > prefix.lastIndexOf(']')) return false;
+                if (/\]\([^)]*$/.test(prefix)) return false;
+                return !/https?:\/\/\S*$/.test(prefix);
+            };
+            while (this.pending) {
+                let cut = 0;
+                for (const match of this.pending.matchAll(/[.!?;。！？]["»”’')]*(?=\s)/g)) {
+                    const end = match.index + match[0].length;
+                    const before = this.pending.slice(0, end);
+                    if (/\b(?:dott|sig|prof|ecc|es|art|pag|ing|avv|dr|mr|mrs)\.$/i.test(before)) continue;
+                    if (safe(end)) { cut = end; break; }
+                }
+                if (!cut && this.pending.length > this.limit) {
+                    for (let index = this.limit; index > this.limit / 3; index--) {
+                        if (/\s/.test(this.pending[index]) && safe(index)) { cut = index; break; }
+                    }
+                }
+                if (!cut) break;
+                result.push(...split(this.pending.slice(0, cut), this.limit));
+                this.pending = this.pending.slice(cut).trimStart();
+            }
+            if (final && this.pending) {
+                // An unfinished code fence is never read aloud as program text.
+                let tail = this.pending;
+                if ((tail.match(/```/g) || []).length % 2) tail = tail.slice(0, tail.lastIndexOf('```')) + ' Blocco di codice omesso.';
+                result.push(...split(tail, this.limit)); this.pending = '';
+            }
+            return result;
+        }
+    }
+    class SegmentQueue {
+        constructor() { this.items = []; this.closed = false; }
+        push(text, emotion) {
+            if (this.closed) throw aborted();
+            this.items.push({text, emotion}); this.wake?.(); this.wake = null;
+        }
+        close() { this.closed = true; this.wake?.(); this.wake = null; }
+        async *[Symbol.asyncIterator]() {
+            while (true) {
+                if (this.items.length) yield this.items.shift();
+                else if (this.closed) return;
+                else await new Promise(resolve => { this.wake = resolve; });
+            }
+        }
+    }
     class SpeechPlayer {
         constructor(settings = {}, onState = () => {}) {
             this.settings = settings; this.onState = onState;
@@ -44,6 +102,7 @@
         emit(name, detail) { root.dispatchEvent(new CustomEvent(`jarvis:${name}`, {detail})); }
         stop() {
             this.session++; this.controller?.abort(); this.controller = null;
+            this.segmentQueue?.close(); this.segmentQueue = null;
             for (const source of this.sources) { try { source.stop(); source.disconnect(); } catch (_) {} }
             this.sources.clear();
             for (const done of this.waiters) done();
@@ -113,16 +172,40 @@
                 if (!complete || pending.trim()) throw new Error('Audio interrotto. Riprova con il pulsante di lettura.');
             } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
         }
+        startStream(emotion = 'normale') {
+            this.stop();
+            const session = this.session;
+            const queue = new SegmentQueue(); this.segmentQueue = queue;
+            const buffer = new SentenceBuffer(this.settings.tts_engine === 'irodori' ? 90 : this.settings.tts_engine === 'kokoro' ? 180 : 240);
+            const done = this.playSegments(queue, session);
+            // Attach a handler immediately: synthesis can fail while AI text is still arriving.
+            done.catch(() => {});
+            return {
+                done,
+                append: (text, nextEmotion = emotion) => {
+                    this.check(session);
+                    for (const chunk of buffer.append(text)) queue.push(chunk, nextEmotion);
+                },
+                finish: () => {
+                    this.check(session);
+                    for (const chunk of buffer.append('', true)) queue.push(chunk, emotion);
+                    queue.close(); return done;
+                },
+                cancel: () => { if (session === this.session) this.stop(); }
+            };
+        }
         async speak(text, emotion = 'normale') {
-            this.stop(); const session = this.session;
+            const stream = this.startStream(emotion);
+            try { stream.append(text, emotion); await stream.finish(); }
+            catch (error) { stream.cancel(); throw error; }
+        }
+        async playSegments(segments, session) {
             const engine = this.settings.tts_engine;
-            const chunks = split(text, engine === 'irodori' ? 90 : engine === 'kokoro' ? 180 : 240);
-            if (!chunks.length) return;
             this.active = true; const controller = new AbortController(); this.controller = controller;
             try {
                 this.onState('preparing_voice');
                 await this.unlock(); this.check(session);
-                for (const chunk of chunks) {
+                for await (const {text:chunk, emotion} of segments) {
                     this.check(session);
                     const timer = setTimeout(() => controller.abort(), engine === 'qwen' ? 400000 : 180000);
                     try {
@@ -147,6 +230,6 @@
             } finally { if (session === this.session) this.stop(); }
         }
     }
-    root.AuraSpeech = {SpeechPlayer, split, clean};
+    root.AuraSpeech = {SpeechPlayer, SentenceBuffer, split, clean};
     if (typeof module !== 'undefined') module.exports = root.AuraSpeech;
 })(typeof window !== 'undefined' ? window : globalThis);

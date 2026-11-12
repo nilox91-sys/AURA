@@ -55,6 +55,8 @@ La voce di base usa Edge online. Le voci sul PC sono opzionali: **PREPARA_QWEN_T
 
 Apri `/voice`, premi **Avvia voce** e consenti il microfono. Dopo la risposta l’ascolto può ripartire automaticamente; puoi disattivarlo nelle impostazioni. Chrome/Edge possono usare un servizio online per il riconoscimento. L’audio del microfono non viene registrato da AURA; le trascrizioni seguono l’impostazione della cronologia. Pronuncia e dialetti restano sperimentali.
 
+In chat e nella stanza vocale il testo arriva progressivamente: la sintesi della prima frase può partire mentre l’AI continua a generare il resto. Le frasi vengono lette in ordine con la voce selezionata, senza leggere i blocchi di codice. **Interrompi** ferma anche i segmenti vocali in attesa. Se la connessione cade dopo l’inizio della risposta, AURA segnala che il testo è parziale e non lo rigenera automaticamente. Solo gli scambi completati vengono salvati nella cronologia. Il tempo effettivo dipende dal servizio AI, dalla voce e dal caricamento iniziale del modello locale. [Dettagli e verifiche](docs/STREAMING.md).
+
 ## GitHub
 
 Il repository è separato dal collegamento del profilo dentro AURA. Per quest’ultimo segui [la guida GitHub](docs/GITHUB.md). Serve una OAuth App personale con Device Flow abilitato; non serve un client secret. Il codice di accesso rimane sul server, il token viene usato per verificare il profilo e non viene salvato. La sessione locale scade dopo otto ore di inattività.
@@ -71,7 +73,7 @@ Per separare i dati dal codice, imposta `JARVIS_DATA_DIR` nel tuo `.env`. Non me
 
 ```text
 python -m unittest discover -s tests -v
-node --test tests/test_speech_player.cjs tests/test_voice_room.cjs tests/test_wakeword.cjs
+node --test tests/test_speech_player.cjs tests/test_voice_room.cjs tests/test_wakeword.cjs tests/test_chat_stream.cjs
 python tools/prepare_avatar.py --check
 python run.py --check
 ```

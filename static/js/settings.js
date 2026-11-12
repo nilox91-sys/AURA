@@ -205,7 +205,7 @@
     }
     node('verify-provider').addEventListener('click',()=>providerAction(false));node('test-provider').addEventListener('click',()=>providerAction(true));
     for(const button of document.querySelectorAll('[data-remove-key]'))button.addEventListener('click',async()=>{
-        button.disabled=true;try{const provider=button.dataset.removeKey;const data=await request('/api/integrations/remove-key',{provider});const input=node(providers[provider].key.replaceAll('_','-'));input.value='';input.placeholder=data.environment_key_present?'Chiave presente nella configurazione .env':'Non configurata';saveState(data.environment_key_present?'Chiave locale rimossa; resta quella del file .env':'Chiave rimossa','saved');}catch(error){saveState(error.message,'error');}finally{button.disabled=false;}
+        button.disabled=true;try{const provider=button.dataset.removeKey;const data=await request('/api/integrations/remove-key',{provider});const input=node(provider==='huggingface'?'hf-api-key':providers[provider].key.replaceAll('_','-'));input.value='';input.placeholder=data.environment_key_present?'Chiave presente nella configurazione .env':'Non configurata';saveState(data.environment_key_present?'Chiave locale rimossa; resta quella del file .env':'Chiave rimossa','saved');}catch(error){saveState(error.message,'error');}finally{button.disabled=false;}
     });
     node('export-preferences').addEventListener('click',async()=>{if(await saveForm())location.href='/api/preferences/export';});
     const excluded=key=>secret(key)||key.startsWith('github_')||key==='schema_version'||key==='ai_model_allowlist';

@@ -26,10 +26,23 @@ class ModelSelectionTests(unittest.TestCase):
         self.assertNotIn('<option value="openrouter">',page)
         self.assertNotIn('<option value="auto">',page)
         self.assertNotIn('id="allow-fallback"',page)
-        self.assertIn('Token Hugging Face · voce Irodori',page)
+        self.assertIn('Token Hugging Face · voci e AI',page)
         self.assertEqual(page.count('id="hf-api-key"'),1)
         for secret in ('google-secret','voice-secret','other-secret'):self.assertNotIn(secret,page)
         self.assertEqual([p['id'] for p in self.client.get('/api/status').json['ai_health']],['gemini'])
+
+    def test_huggingface_token_is_always_in_voice_settings_once_and_stays_private(self):
+        for allowed in ([], [MODEL]):
+            with self.subTest(allowed=allowed):
+                base.jarvis.settings_manager.update({'model':MODEL,'ai_model_allowlist':allowed,'hf_api_key':'private-voice-token'})
+                page=self.client.get('/settings').get_data(as_text=True)
+                self.assertEqual(page.count('id="hf-api-key"'),1)
+                self.assertLess(page.index('id="voce"'),page.index('id="hf-api-key"'))
+                self.assertLess(page.index('id="hf-api-key"'),page.index('id="aspetto"'))
+                self.assertNotIn('private-voice-token',page)
+                result=self.client.post('/api/save_settings',json={'hf_api_key':'new-voice-token'})
+                self.assertEqual(result.status_code,200)
+                self.assertEqual(base.jarvis.settings_manager.get('model'),MODEL)
 
     def test_backend_rejects_removed_model_and_preserves_all_saved_keys(self):
         self.enable_selection()

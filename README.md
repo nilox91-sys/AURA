@@ -1,5 +1,9 @@
 # AURA · La tua compagna di idee
 
+[![Checks](https://github.com/nilox91-sys/AURA/actions/workflows/checks.yml/badge.svg)](https://github.com/nilox91-sys/AURA/actions/workflows/checks.yml)
+
+[Repository pubblico](https://github.com/nilox91-sys/AURA)
+
 Assistente personale in italiano, con avatar Live2D, personalità configurabile, napoletano e conversazione vocale. Funziona sul PC; puoi scegliere un servizio AI online oppure un modello locale.
 
 ## Avvio su Windows
@@ -30,7 +34,7 @@ Apri `/voice`, premi **Avvia voce** e consenti il microfono. Dopo la risposta l�
 
 ## GitHub
 
-Il repository è separato dal collegamento del profilo dentro AURA. Per quest’ultimo segui [la guida GitHub](docs/GITHUB.md). Serve una OAuth App personale con Device Flow abilitato; non serve un client secret. Il codice di accesso rimane sul server, il token viene usato per verificare il profilo e non viene salvato. La sessione locale dura al massimo otto ore.
+Il repository è separato dal collegamento del profilo dentro AURA. Per quest’ultimo segui [la guida GitHub](docs/GITHUB.md). Serve una OAuth App personale con Device Flow abilitato; non serve un client secret. Il codice di accesso rimane sul server, il token viene usato per verificare il profilo e non viene salvato. La sessione locale scade dopo otto ore di inattività.
 
 ## Dati e sicurezza
 
@@ -53,6 +57,6 @@ I test usano risposte simulate e non consumano credito API. I controlli che rich
 
 ## Licenze e limiti
 
-Il codice originale di AURA è proposto sotto licenza MIT; [LICENSE](LICENSE). Le librerie e gli asset di terzi mantengono le loro licenze. I modelli Live2D e Cubism Core non sono distribuiti nel repository: il programma di preparazione li scarica dalle fonti ufficiali e verifica le impronte. Vedi [THIRD_PARTY.md](licenses/THIRD_PARTY.md).
+Il codice originale di AURA è distribuito sotto licenza MIT; [LICENSE](LICENSE). Le librerie e gli asset di terzi mantengono le loro licenze. I modelli Live2D e Cubism Core non sono distribuiti nel repository: il programma di preparazione li scarica dalle fonti ufficiali e verifica le impronte. Vedi [THIRD_PARTY.md](licenses/THIRD_PARTY.md).
 
 AURA genera testo: non naviga sul web, non esegue codice e non controlla il PC. Le risposte dei modelli possono contenere errori. Questo progetto non è affiliato ai provider o a Live2D.

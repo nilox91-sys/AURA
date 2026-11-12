@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "schema_version": 2,
+    "default_mode": "natural",
+    "note": "Gli aiuti TTS sono approssimazioni per una voce italiana; non traducono né modificano il testo visualizzato."
+  },
+  "global": {
+    "API": "a pi i",
+    "LLM": "elle elle emme",
+    "TTS": "ti ti esse"
+  },
+  "dialects": {
+    "napoletano": {
+      "jamme": "iamme",
+      "assaje": "assaie",
+      "nuje": "nuie",
+      "vuje": "vuie"
+    }
+  }
+}

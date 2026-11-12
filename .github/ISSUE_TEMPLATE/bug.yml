@@ -1,0 +1,14 @@
+name: Segnala un problema
+description: Un comportamento da correggere
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Cosa succede e come riprodurlo
+      description: Non inserire chiavi, conversazioni private o file di configurazione.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Versione AURA, Windows e browser

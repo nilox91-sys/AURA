@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+static/vendor/*.js -text
+static/images/* -text
+static/voices/* -text
+licenses/* -text

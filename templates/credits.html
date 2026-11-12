@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}AURA · Crediti{% endblock %}
+{% block content %}
+<article class="credits-page">
+    <a href="{{ url_for('index') }}">← Torna alla conversazione</a>
+    <h1>Il volto di Aura</h1>
+    <p>Il personaggio selezionato è {{ avatar.label }}, modello anime ufficiale Live2D, con animazioni, fisica e bocca collegata alla voce dell’assistente. Nelle impostazioni puoi scegliere Hiyori o Haru.</p>
+    <h2>{{ avatar.name }} © Live2D Inc.</h2>
+    <p>This content uses sample data owned and copyrighted by Live2D Inc. The sample data are utilized in accordance with terms and conditions set by Live2D Inc. This content itself is created at the author’s sole discretion.</p>
+    <p>Fonte: <a href="{{ avatar.source }}" target="_blank" rel="noopener noreferrer">{{ avatar.label }} · fonte ufficiale</a>. Hiyori Momose è un personaggio disegnato da Kani Biimu.</p>
+    <p>Modelli e texture originali sono conservati. Le impostazioni dei movimenti non includono i suoni giapponesi per usare la sintesi italiana di Aura. Le quattro espressioni Cozy di Hiyori regolano i parametri del rig originale, senza ridisegnare il personaggio.</p>
+    <ul>
+        <li><a href="https://www.live2d.com/eula/live2d-free-material-license-agreement_en.html" target="_blank" rel="noopener noreferrer">Licenza dei materiali Live2D</a></li>
+        <li><a href="https://www.live2d.com/en/learn/sample/model-terms/" target="_blank" rel="noopener noreferrer">Condizioni dei personaggi di esempio</a></li>
+        <li><a href="https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_en.html" target="_blank" rel="noopener noreferrer">Licenza Cubism Core</a></li>
+    </ul>
+    <h2>Voce locale di Hiyori</h2>
+    <p>Kokoro-82M (Apache 2.0), tramite kokoro-onnx (MIT). Il profilo Hiyori combina i timbri sintetici Sara e Alpha del modello, con pronuncia italiana. Il carattere anime viene dal profilo vocale, senza alzare artificialmente il pitch. I dialetti non sono voci madrelingua dedicate.</p>
+    <p><a href="https://huggingface.co/hexgrad/Kokoro-82M" target="_blank" rel="noopener noreferrer">Modello e licenza Kokoro</a> · <a href="https://github.com/thewh1teagle/kokoro-onnx" target="_blank" rel="noopener noreferrer">Motore kokoro-onnx</a>. Le licenze sono incluse nella cartella licenses. La sintesi vocale locale non usa servizi remoti; il modello AI della conversazione mantiene il provider selezionato nelle impostazioni.</p>
+    <h2>Irodori Anime e Qwen3-TTS</h2>
+    <p><a href="https://huggingface.co/phasefield-audio/Irodori-TTS-v4.1-Anime" target="_blank" rel="noopener noreferrer">Irodori-TTS v4.1 Anime</a>, modello giapponese di phasefield-audio derivato da Irodori di Aratako (MIT e condizioni del modello). I due riferimenti inclusi sono campioni sintetici generati con una descrizione generica; le fonti sono registrate in static/voices/sources.json.</p>
+    <p><a href="https://github.com/QwenLM/Qwen3-TTS" target="_blank" rel="noopener noreferrer">Qwen3-TTS</a> del team Qwen / Alibaba Cloud (Apache 2.0). AURA usa il modello 0.6B Base sul PC per leggere in italiano con i riferimenti sintetici Irodori. Qwen e Kokoro non inviano il testo a servizi vocali remoti. La conversazione AI mantiene il provider scelto nelle impostazioni.</p>
+    <h2>Stanza vocale</h2>
+    <p>Sfondo originale generato per AURA con ImageGen. Hiyori mantiene il modello Live2D originale. L'accelerazione locale Qwen usa <a href="https://github.com/andimarafioti/faster-qwen3-tts" target="_blank" rel="noopener noreferrer">faster-qwen3-tts 0.3.2</a> di Andres Marafioti (MIT), con librerie fissate a versioni compatibili.</p>
+    <h2>Componenti</h2>
+    <p>Live2D Cubism Core, PixiJS 6.5.10 e pixi-live2d-display 0.4.0 (MIT). I file sono serviti dal computer, senza CDN durante l’uso.</p>
+    <p>Licenze e fonti complete sono nella cartella <code>licenses</code> e nel registro <code>asset-manifest.json</code>. Hiyori e Haru sono personaggi di esempio di terzi, non creazioni originali di Aura. Per distribuire o vendere l’applicazione, verifica le condizioni Live2D applicabili alla tua attività.</p>
+</article>
+{% endblock %}

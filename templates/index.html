@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}AURA · Il tuo assistente personale{% endblock %}
+{% block content %}
+<div class="console-layout">
+    <aside class="avatar-panel" aria-label="Personaggio di Aura">
+        <div class="avatar-heading"><span class="eyebrow">UNO SPAZIO PER LE TUE IDEE</span><h2>{{ settings.assistant_name }}</h2><p>{{ settings.assistant_tagline }}</p>{% if settings.personality_profile == 'cozy_nerd' %}<span class="cozy-tag">nerd cozy <span aria-hidden="true">✦</span></span>{% endif %}</div>
+        <div class="avatar-stage" id="avatar-stage" data-state="idle">
+            <canvas id="live2d-canvas" role="img" aria-label="{{ avatar.name }}, personaggio anime animato di Aura" hidden></canvas>
+            <div class="avatar-loading" id="avatar-loading" role="status"><span aria-hidden="true"></span>Un momento, arrivo…</div>
+        </div>
+        <div class="avatar-footer">
+            <div class="presence-line"><i aria-hidden="true"></i><span id="avatar-status" role="status">Sono qui, dimmi tutto.</span></div>
+            <div class="avatar-controls"><button type="button" id="avatar-motion" aria-pressed="false">Pausa movimenti</button><button type="button" id="avatar-frame">Figura intera</button></div>
+            <div class="avatar-credit">{{ avatar.name }} © Live2D Inc. · <a href="{{ url_for('credits') }}">Crediti</a></div>
+        </div>
+    </aside>
+    <section class="conversation-panel">
+        <header class="console-header">
+            <div class="identity"><span class="eyebrow">AURA</span><h1>Conversazione</h1><p>{{ 'Napoletano · Napoli' if settings.dialect == 'napoletano' else 'Italiano' if settings.dialect == 'standard' else settings.dialect | replace('_', ' ') | title }} <span aria-hidden="true">·</span> <span>{{ 'Irodori · anime' if settings.tts_engine == 'irodori' else 'Qwen · AURA' if settings.tts_engine == 'qwen' else 'Hiyori locale' if settings.tts_engine == 'kokoro' else {'it-IT-ElsaNeural':'Elsa', 'it-IT-IsabellaNeural':'Isabella', 'it-IT-DiegoNeural':'Diego', 'it-IT-GiuseppeMultilingualNeural':'Giuseppe'}.get(settings.voice_name, 'Voce personale') }}</span></p></div>
+            <div class="header-tools"><div class="clock-module"><span id="live-time">--:--</span><small id="live-date"></small></div><button class="tool-button" id="export-chat" type="button" title="Esporta conversazione" aria-label="Esporta conversazione">↓</button><button class="tool-button danger" id="clear-chat" type="button" title="Cancella conversazione" aria-label="Cancella memoria">⌫</button></div>
+        </header>
+        {% if not settings.secrets_configured.openrouter_api_key and settings.model == 'openrouter:openrouter/free' %}
+        <div class="connect-banner"><div><strong>Un ultimo passo per parlare insieme.</strong><p>Collega la tua chiave personale OpenRouter e prova una prima risposta.</p></div><a class="soft-button" href="{{ url_for('settings') }}#connessione">Collega AURA ↗</a></div>
+        {% endif %}
+        <div class="conversation-body"><div class="messages-container" id="chat-messages" role="log" aria-live="polite" aria-label="Conversazione">
+            <div class="message nexus-msg welcome-message"><div class="message-meta"><span class="message-source">AU</span><span>{{ settings.assistant_name }}</span></div><div class="msg-content"><p>Ciao, sono {{ settings.assistant_name | title }}.<br>{{ settings.welcome_message or ('Che idea esploriamo oggi?' if settings.personality_profile == 'cozy_nerd' else 'Da dove iniziamo?') }}</p></div></div>
+        </div></div>
+        <div class="suggestion-row" id="suggestion-row"><button type="button" data-prompt="Ho un problema da risolvere. Aiutami a individuarne la causa, una domanda alla volta.">Facciamo debug</button><button type="button" data-prompt="Vorrei sviluppare un'idea. Aiutami a renderla concreta.">Diamo forma a un’idea</button><button type="button" data-prompt="Spiegami un concetto interessante di tecnologia con un esempio semplice e concreto.">Una curiosità tech</button></div>
+        <footer class="composer"><div id="wake-indicator" class="wake-indicator" role="status"><span></span>Ti ascolto</div><div class="composer-box"><button id="mic-btn" class="composer-action" type="button" title="Dettatura vocale" aria-label="Dettatura vocale">♪</button><textarea id="user-input" rows="1" maxlength="6000" aria-label="Messaggio per Aura" placeholder="Scrivi ad Aura…" autocomplete="off" spellcheck="true"></textarea><canvas id="mic-visualizer" width="72" height="28" aria-hidden="true"></canvas><button id="send-btn" class="send-button" type="button" aria-label="Invia messaggio">↑</button></div><div class="composer-hint"><span>Invio per inviare · Maiusc + Invio per andare a capo</span><button type="button" class="stop-audio" id="stop-audio" hidden>Interrompi voce · Esc</button><span id="voice-state">Voce attiva</span></div></footer>
+    </section>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='vendor/live2dcubismcore.min.js') }}"></script><script src="{{ url_for('static', filename='vendor/pixi-6.5.10.min.js') }}"></script><script src="{{ url_for('static', filename='vendor/live2d-display-0.4.0.min.js') }}"></script><script src="{{ url_for('static', filename='js/avatar.js') }}"></script>{% endblock %}

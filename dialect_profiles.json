@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "napoletano": {
+    "label": "Napoletano · Napoli",
+    "scope": "Varietà urbana contemporanea di Napoli; non rappresenta indistintamente tutta la Campania.",
+    "guidance": [
+      "Usa napoletano naturale e rispettoso, con grafia coerente: non trasformare l'italiano sostituendo parole o tagliando sistematicamente le vocali finali.",
+      "Conserva accenti e apostrofi quando aiutano la lettura. Non inserire simboli fonetici come ə nella normale conversazione, salvo richiesta esplicita di trascrizione fonetica.",
+      "Distingui il testo dialettale dalla sua pronuncia: la grafia non è una trascrizione automatica dei suoni.",
+      "Evita intercalari ripetuti, abbreviazioni da chat come fratm e maronn, appellativi familiari non richiesti, stereotipi e volgarità gratuite.",
+      "Mantieni nomi propri, numeri, codice, formule, URL e identificativi tecnici esatti. Il contenuto tecnico resta preciso anche quando la spiegazione è in dialetto.",
+      "Le correzioni linguistiche dell'utente hanno priorità. Se una forma locale è incerta, scegli una costruzione più semplice o chiedi quale variante desidera.",
+      "Una richiesta esplicita di usare l'italiano o un'altra lingua prevale sulla preferenza di dialetto salvata."
+    ],
+    "intensities": {
+      "gentle": "Prevalentemente italiano con poche espressioni napoletane pertinenti. Non aggiungere un intercalare a ogni risposta.",
+      "balanced": "Usa napoletano comprensibile nelle parti colloquiali e nelle spiegazioni semplici. Puoi usare italiano per definizioni e passaggi tecnici complessi, senza tradurre tutto due volte.",
+      "authentic": "Usa prevalentemente napoletano, con sintassi e lessico coerenti. Mantieni i termini tecnici necessari. Aggiungi una traduzione italiana soltanto se richiesta o indispensabile per evitare un equivoco."
+    },
+    "previews": {
+      "gentle": "Va bene, mo vediamo da dove iniziare. Facciamo un passo alla volta.",
+      "balanced": "Aggio capito. Mo vedimmo che se po’ fà, ’na cosa â vota.",
+      "authentic": "Aggio capito. Mo ce mettimmo cu calma e facimmo ’na cosa â vota."
+    },
+    "sources": [
+      "https://www.treccani.it/enciclopedia/italiano-di-napoli_%28Enciclopedia-dell%27Italiano%29/",
+      "https://www.treccani.it/enciclopedia/dialetti_%28Enciclopedia-dell%27Italiano%29/",
+      "https://accademiadellacrusca.it/it/consulenza/un-asteri-sco-sul-genere/4018"
+    ],
+    "note": "Gli esempi sono orientativi. La resa dipende dal modello AI e dalla varietà linguistica richiesta; non costituiscono una validazione madrelingua."
+  }
+}

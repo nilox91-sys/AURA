@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0B1020">
+    <title>{% block title %}AURA · Il tuo assistente personale{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/avatar.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/aura.css') }}">
+    <link rel="stylesheet" href="/static/css/settings.css">
+    <script>
+        window.AURA_SETTINGS = {{ settings | tojson }};
+        window.NEXUS_SETTINGS = window.AURA_SETTINGS;
+        window.AURA_DIALECTS = {{ dialect_meta | tojson }};
+        window.AURA_AVATAR = {{ avatar | tojson }};
+    </script>
+    {% block head %}{% endblock %}
+</head>
+<body data-theme="{{ settings.theme }}" data-page="{{ 'settings' if request.path == '/settings' else 'console' }}">
+    <div class="app-shell">
+        <aside class="command-rail" aria-label="Navigazione principale">
+            <a class="brand-mark" href="{{ url_for('index') }}" aria-label="Aura home"><span class="aura-monogram">A</span></a>
+            <nav class="rail-nav">
+                <a href="{{ url_for('index') }}" class="rail-link {% if request.path == '/' %}active{% endif %}" aria-label="Conversazione" data-label="Conversazione"><span aria-hidden="true">◌</span></a>
+                <a href="{{ url_for('voice_room') }}" class="rail-link" aria-label="Stanza vocale" data-label="Stanza vocale"><span aria-hidden="true">✧</span></a>
+                <a href="{{ url_for('settings') }}" class="rail-link {% if request.path == '/settings' %}active{% endif %}" aria-label="Impostazioni" data-label="Impostazioni"><span aria-hidden="true">⚙</span></a>
+            </nav>
+            <div class="rail-footer">
+                <label class="voice-control" title="Attiva o disattiva la voce"><input type="checkbox" id="voice-enable" checked><span class="voice-symbol" aria-hidden="true">♪</span><span class="sr-only">Voce</span></label>
+                <a class="rail-credits" href="{{ url_for('credits') }}" aria-label="Crediti e licenze">i</a>
+            </div>
+        </aside>
+        <main class="workspace">{% block content %}{% endblock %}</main>
+    </div>
+    <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+    <script src="{{ url_for('static', filename='js/wakeword.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/speech-player.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

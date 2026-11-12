@@ -1,0 +1,18 @@
+[
+  {
+    "path": "static/voices/aura-irodori-reference.wav",
+    "sha256": "f4e06439ffd59909638958077e8622c4a1b41960e49326f7a69018fd6bdd0944",
+    "bytes": 1125164,
+    "type": "synthetic reference audio",
+    "source": "https://huggingface.co/phasefield-audio/Irodori-TTS-v4.1-Anime",
+    "generated_via": "https://huggingface.co/spaces/hugging-apps/irodori-tts-anime-demo"
+  },
+  {
+    "path": "static/voices/aura-irodori-japanese.wav",
+    "sha256": "b61c9ca8c69c82f7dba8e9e3ce228c2988e4b4030f31f5bc9f4317e23fac1289",
+    "bytes": 1129004,
+    "type": "synthetic reference audio",
+    "source": "https://huggingface.co/phasefield-audio/Irodori-TTS-v4.1-Anime",
+    "generated_via": "https://huggingface.co/spaces/hugging-apps/irodori-tts-anime-demo"
+  }
+]

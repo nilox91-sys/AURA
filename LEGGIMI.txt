@@ -1,0 +1,117 @@
+AURA 2.0 - Il tuo spazio AI
+===========================
+
+Nuove impostazioni in sei schede: Connessione, Identita, Lingua e voce,
+Avatar e spazio, Conversazioni, Account e dati.
+Avvia sempre start_aura.bat. Le voci e i dati esistenti sono conservati.
+Guida aggiornata: README.md. Accesso e pubblicazione GitHub: docs/GITHUB.md.
+
+La guida seguente descrive anche le funzioni vocali gia presenti.
+
+AURA 1.6 - Voce progressiva e stanza vocale
+============================================
+
+AVVIO
+Apri start_aura.bat.
+Indirizzo: http://127.0.0.1:5001/ . Lascia aperta la finestra del BAT.
+Il programma controlla ambiente, versione e copie gia avviate.
+
+STANZA VOCALE
+Apri la nuova voce Stanza vocale nella barra laterale oppure:
+http://127.0.0.1:5001/voice
+Hiyori Live2D su uno sfondo originale di una stanza anime cozy, senza chat.
+Premi Avvia voce, consenti il microfono e parla: non serve la parola di risveglio.
+AURA smette di ascoltare mentre risponde e riapre l'ascolto alla fine.
+Interrompi e ascolta le restituisce subito la parola; Termina voce o Esc
+chiude l'ascolto. Cambiare scheda mette la conversazione in pausa.
+Il browser puo usare servizi online per riconoscere la voce; Chrome ed Edge
+sono consigliati. Non viene salvato l'audio del microfono. I messaggi trascritti
+e le risposte restano nella normale memoria della conversazione, condivisa
+con la chat. Questa modalita usa risposte brevi senza modificare le preferenze.
+La comprensione vocale e l'accento dialettale dipendono dai modelli disponibili.
+
+SCEGLIERE LA VOCE
+Apri Impostazioni, sezione Lingua e voce. Salva e ascolta genera una prova
+con il motore selezionato. Le voci precedenti non vengono rimosse.
+
+- Qwen3-TTS: modello gratuito 0.6B Base, con riferimenti sintetici Irodori.
+  Supporta l'italiano e funziona sul PC senza account o chiavi API vocali.
+  Il modello resta pronto tra le risposte e si prepara all'avvio di AURA.
+  L'accelerazione CUDA usa faster-qwen3-tts 0.3.2, compatibile con queste librerie.
+  Prova su RTX 3050 Laptop 4 GB: primo audio via HTTP in 0,65-0,92 s a motore
+  pronto; circa 3,2 s per completare un campione di circa 4 s. Sono misure di
+  sintesi, escluse la risposta AI e la preparazione iniziale (decine di secondi).
+  Altre schede e la CPU possono richiedere molto piu tempo.
+  I due profili usano rispettivamente il riferimento anime giapponese e
+  quello Irodori originale. Timbro e pronuncia possono variare.
+  Legge fino a 600 caratteri per volta. La generazione usa la GPU se disponibile.
+- Irodori Anime: demo Hugging Face, con modello giapponese e accento italiano
+  sperimentale. Puoi scegliere testo originale o aiuto fonetico anime.
+  L'aiuto fonetico riscrive solo il testo letto, senza tradurre la conversazione;
+  non puo riprodurre tutti i suoni dell'italiano. Usare frasi brevi.
+  Serve un token personale Hugging Face di lettura, inserito nel campo locale
+  delle impostazioni. Il login nel browser non collega automaticamente AURA.
+  La sintesi invia alla demo il testo letto e il riferimento audio sintetico.
+  La quota gratuita e la disponibilita dipendono da Hugging Face.
+- Kokoro: voce locale piu leggera, con profili Hiyori anime, delicata e Sara.
+  Gratuita e offline per la sintesi. I profili anime combinano Sara e Alpha.
+- Edge: le voci Elsa, Isabella, Diego e Giuseppe precedenti, con controlli
+  di intonazione, velocita e timbro. Richiede Internet per la voce.
+
+Qwen e Kokoro non applicano i filtri di pitch di Edge. I controlli non pertinenti
+sono disabilitati. La pronuncia dei dialetti resta approssimativa.
+Un errore locale non cambia automaticamente il motore e non invia il testo
+a un altro servizio. La bocca Live2D segue l'audio realmente riprodotto.
+Interrompi annulla la riproduzione e scarta ogni audio tardivo. Per Qwen,
+una sintesi progressiva ancora in corso viene fermata quando il server rileva
+la chiusura del collegamento; in quel caso il modello dovra prepararsi di nuovo.
+Le altre sintesi gia iniziate possono terminare in background.
+Le risposte lunghe vengono divise in segmenti, senza tagliare il testo finale.
+
+PREPARAZIONE DELLE VOCI SU UN ALTRO PC WINDOWS
+Il pacchetto sorgente non contiene gli ambienti Python o i grandi modelli vocali.
+Serve Python 3.13 per i motori vocali separati e Internet durante la preparazione.
+Esegui PREPARA_QWEN_TTS.bat per Qwen oppure PREPARA_VOCE_LOCALE.bat per Kokoro.
+Qwen scarica circa 2,5 GB di modelli, oltre alle librerie GPU di alcuni GB;
+Kokoro scarica circa 354 MB di modelli. Le versioni e gli hash sono verificati.
+Modelli e ambienti vocali sono nei dati locali: %LOCALAPPDATA%/AURA/voices,
+fuori dalla cartella OneDrive del progetto. Nessuna modifica al Python globale.
+
+AI, CHIAVI E DATI
+Il modello AI della conversazione resta quello scelto nelle impostazioni.
+Le voci locali non rendono offline il provider AI, ad esempio OpenRouter.
+Le chiavi si inseriscono solo nelle impostazioni locali, mai nella chat.
+Campi chiave vuoti conservano le credenziali salvate. Le chiavi non vengono
+restituite al browser e non vengono passate ai processi vocali locali.
+Impostazioni e chiavi: settings.json oppure .env. Cronologia: nexus_db.sqlite.
+I backup degli aggiornamenti sono privati e restano nella cartella backups.
+Non condividere impostazioni personali, database, cache o backup.
+
+AVATAR E PERSONALITA
+Hiyori Momose e Haru restano modelli Live2D ufficiali con texture e rig locali.
+Nerd cozy, intensita, lingua e stile delle risposte restano configurabili.
+Il profilo napoletano ha tre intensita; gli altri registri sono sperimentali.
+L'aggiornamento conserva le preferenze e la cronologia esistenti.
+
+VERIFICHE
+  start_aura.bat --check
+  .venv/Scripts/python.exe -m unittest discover -s tests -q
+  node --test tests/test_wakeword.cjs tests/test_speech_player.cjs tests/test_voice_room.cjs
+Node serve solo per i test. Il pulsante di anteprima esegue una prova reale
+della voce selezionata; eventuali quote o problemi sono mostrati nella pagina.
+
+FONTI E LICENZE
+Hiyori e Haru: Live2D Inc.; Hiyori disegnata da Kani Biimu.
+Qwen3-TTS: team Qwen / Alibaba Cloud, Apache 2.0.
+Irodori Anime: phasefield-audio, derivato da Irodori di Aratako, MIT e condizioni
+del modello. I riferimenti inclusi sono campioni sintetici generati con
+descrizioni generiche. Kokoro-82M: Apache 2.0; kokoro-onnx: MIT.
+Fonti e licenze: pagina Crediti, licenses, asset-manifest.json,
+static/voices/sources.json, voice-model-manifest.json e qwen-model-manifest.json.
+https://github.com/QwenLM/Qwen3-TTS
+https://huggingface.co/phasefield-audio/Irodori-TTS-v4.1-Anime
+https://huggingface.co/hexgrad/Kokoro-82M
+https://www.live2d.com/en/learn/sample/momose-hiyori/
+
+Accelerazione: https://github.com/andimarafioti/faster-qwen3-tts (MIT, versione 0.3.2).
+Sfondo static/images/cozy-room.png: generato per AURA con ImageGen, senza personaggi.

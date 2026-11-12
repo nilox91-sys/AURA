@@ -1,0 +1,11 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const {extractCommand} = require('../static/js/wakeword.js');
+test('recognizes phrase and preserves following command', () => assert.equal(extractCommand('Ehi Aura, pianifica la giornata', 'ehi aura'), 'pianifica la giornata'));
+test('accepts punctuation between wake words', () => assert.equal(extractCommand('Ehi, AURA! Come stai?', 'ehi aura'), 'Come stai?'));
+test('accepts wake phrase alone', () => assert.equal(extractCommand('Ehi Aura', 'ehi aura'), ''));
+test('does not match aurora', () => assert.equal(extractCommand('ehi aurora ciao', 'ehi aura'), null));
+test('does not match a longer first word', () => assert.equal(extractCommand('vehi aura ciao', 'ehi aura'), null));
+test('does not match the ordinary word ora', () => assert.equal(extractCommand('ehi ora che facciamo', 'ehi aura'), null));
+test('supports a custom single-word phrase', () => assert.equal(extractCommand('Jarvis, ciao', 'jarvis'), 'ciao'));
+test('empty phrase never activates', () => assert.equal(extractCommand('ciao', ''), null));

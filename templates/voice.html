@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <meta name="theme-color" content="#262238">
+    <title>{{ settings.assistant_name }} · Stanza vocale</title>
+    <link rel="stylesheet" href="{{ url_for('static',filename='css/voice-room.css') }}">
+    <script>window.AURA_SETTINGS={{ settings | tojson }};window.AURA_AVATAR={{ avatar | tojson }};</script>
+</head>
+<body data-theme="{{ settings.theme }}">
+<main class="voice-room" aria-label="Stanza vocale di Aura">
+    <header class="room-header"><a href="{{ url_for('index') }}" class="room-brand" aria-label="Torna alla conversazione">AURA<span>la nostra stanza</span></a><nav aria-label="Navigazione"><a href="{{ url_for('index') }}">Chat</a><a href="{{ url_for('settings') }}">Impostazioni</a></nav></header>
+    <div class="room-character" id="avatar-stage" data-state="idle">
+        <canvas id="live2d-canvas" role="img" aria-label="{{ avatar.name }}, personaggio animato di Aura" hidden></canvas>
+        <div id="avatar-loading" class="avatar-loading" role="status">Un momento, arrivo…</div>
+    </div>
+    <section class="room-overlay" aria-label="Controlli della conversazione vocale">
+        <div class="room-presence"><span class="presence-dot" aria-hidden="true"></span><span id="room-status" role="status" aria-live="polite">Uno spazio per parlare, con calma.</span></div>
+        <p id="room-hint">Avvia la voce e concedi il microfono. Poi dimmi cosa hai in mente.</p>
+        <div class="room-actions"><button type="button" id="room-start" class="primary">Avvia voce <span aria-hidden="true">♪</span></button><button type="button" id="room-interrupt" hidden>Interrompi e ascolta</button><button type="button" id="room-retry" hidden>Riascolta risposta</button></div>
+        <p class="room-note" id="room-note">Il riconoscimento vocale dipende dal browser e può usare servizi online. Consigliati Chrome o Edge.</p>
+    </section>
+    <details class="room-options"><summary>Avatar</summary><button id="avatar-motion" type="button" aria-pressed="false">Pausa movimenti</button><button id="avatar-frame" type="button">Figura intera</button><span id="avatar-status" class="sr-only" aria-live="off">Sono qui.</span><a href="{{ url_for('credits') }}">{{ avatar.name }} © Live2D Inc. · Crediti</a></details>
+</main>
+<script src="{{ url_for('static',filename='vendor/live2dcubismcore.min.js') }}"></script>
+<script src="{{ url_for('static',filename='vendor/pixi-6.5.10.min.js') }}"></script>
+<script src="{{ url_for('static',filename='vendor/live2d-display-0.4.0.min.js') }}"></script>
+<script src="{{ url_for('static',filename='js/speech-player.js') }}"></script>
+<script src="{{ url_for('static',filename='js/avatar.js') }}"></script>
+<script src="{{ url_for('static',filename='js/voice-room.js') }}"></script>
+</body>
+</html>

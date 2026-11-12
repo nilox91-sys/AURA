@@ -12,6 +12,25 @@ from settings_store import SECRET_KEYS
 def register_settings_api(app,manager,defaults,cache_dir):
     api=Blueprint('settings_operations',__name__)
 
+    @api.post('/api/integrations/selection')
+    def selection():
+        body=request.get_json(silent=True)
+        if not isinstance(body,dict):return jsonify(error='Dati non validi.'),400
+        mode=body.get('mode')
+        if mode=='all':
+            manager.update({'ai_model_allowlist':[]})
+        elif mode=='selected':
+            current=manager.get_all();identifier=current.get('model','')
+            provider,sep,model=identifier.partition(':')
+            if not sep or provider not in PROVIDERS:
+                return jsonify(error='Scegli prima un servizio e un modello preciso.'),400
+            state=LLMEngine.health.status(provider,LLMEngine.provider_keys(current),model)
+            if not state['generation_verified']:
+                return jsonify(error='Prova una risposta con il modello selezionato prima di mantenere solo quello.'),409
+            manager.update({'ai_model_allowlist':[identifier]})
+        else:return jsonify(error='Tipo di selezione non valido.'),400
+        return jsonify(status='success',mode=mode)
+
     @api.post('/api/integrations/check')
     def check():
         body=request.get_json(silent=True)
@@ -24,6 +43,7 @@ def register_settings_api(app,manager,defaults,cache_dir):
             if settings.get('ai_model_allowlist'):
                 available=set(result['models'])
                 result['models']=[name for name in visible_models(provider,settings) if name in available]
+                result['model_costs']={name:cost for name,cost in result.get('model_costs',{}).items() if name in result['models']}
                 if not result['models'] and result['state']=='available':result['state']='no_models'
                 result['message']=f'Catalogo controllato: {len(result["models"])} modelli mantenuti nella selezione. La disponibilità attuale si verifica con una prova di risposta.'
             if result['state']=='available':

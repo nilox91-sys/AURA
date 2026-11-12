@@ -1,5 +1,6 @@
 """Native OpenAI/Claude and compatible endpoints, with bounded responses and safe errors."""
 import json,re
+from decimal import Decimal,InvalidOperation
 import requests
 from provider_registry import PROVIDERS,base_url
 from runtime_utils import provider_timeout
@@ -39,15 +40,18 @@ def call_extra(provider,model,messages,settings,options,schema):
             {'model':model,'system':system,'messages':turns,'max_tokens':options['max_tokens'],'temperature':temperature})
         return ''.join(block.get('text','') for block in data.get('content',[]) if block.get('type')=='text'),data.get('stop_reason')=='max_tokens',data
     if key:headers['Authorization']='Bearer '+key
-    if provider=='openai':
+    if provider in {'openai','xai'}:
         payload={'model':model,'input':messages,'max_output_tokens':options['max_tokens'],'store':False,
                  'text':{'format':{'type':'json_schema','name':'aura_reply','schema':schema,'strict':True}}}
-        if model.startswith(('gpt-4','chatgpt-4')):payload['temperature']=temperature
+        if provider=='openai' and model.startswith(('gpt-4','chatgpt-4')):payload['temperature']=temperature
+        if provider=='xai':payload.update(temperature=0.7,top_p=0.95)
         data=request_json('POST',base_url(provider,settings)+'/responses',headers,payload)
         text=''.join(c.get('text','') or c.get('refusal','') for item in data.get('output',[]) if item.get('type')=='message'
                      for c in item.get('content',[]) if c.get('type') in ('output_text','refusal'))
         return text,data.get('status')=='incomplete',data
     payload={'model':model,'messages':messages,'max_tokens':options['max_tokens'],'temperature':temperature,'stream':False}
+    if provider=='cerebras' and model in {'gpt-oss-120b','qwen-3.8-27b'}:
+        payload['reasoning_effort']=options.get('reasoning_effort','low')
     data=request_json('POST',base_url(provider,settings)+'/chat/completions',headers,payload)
     choice=data['choices'][0]
     return choice.get('message',{}).get('content',''),choice.get('finish_reason')=='length',data
@@ -69,7 +73,7 @@ def discover(provider,settings):
         request_json('GET','https://huggingface.co/api/whoami-v2',headers,timeout=(3,10))
     data=request_json('GET',base+path,headers,timeout=(3,10))
     entries=data.get('models',[]) if provider in {'gemini','ollama'} else data.get('data',[])
-    models=[]
+    models=[];model_costs={}
     for item in entries[:4000]:
         if not isinstance(item,dict):continue
         name=item.get('name','') if provider in {'gemini','ollama'} else item.get('id','')
@@ -78,12 +82,23 @@ def discover(provider,settings):
         if provider=='gemini' and 'generateContent' not in item.get('supportedGenerationMethods',[]):continue
         if not isinstance(name,str) or not re.fullmatch(r'[\w./:@+-]{1,160}',name):continue
         if any(word in name.lower() for word in ('embedding','whisper','tts','realtime','transcrib','dall-e','moderation','lyria','robotics','antigravity','deep-research','computer-use','nano-banana','customtools')):continue
-        if provider=='gemini' and 'image' in name.lower():continue
+        if provider in {'gemini','openai','xai'} and any(word in name.lower() for word in ('image','imagine','audio','video','voice')):continue
         modalities=item.get('architecture',{}).get('output_modalities',[])
         if modalities and 'text' not in modalities:continue
         if item.get('capabilities',{}).get('completion_chat') is False:continue
         models.append(name)
+        if provider=='openrouter':
+            pricing=item.get('pricing',{})
+            try:
+                prices=[Decimal(str(pricing[key])) for key in ('prompt','completion')]
+                prices.append(Decimal(str(pricing.get('request',0))))
+                if all(value.is_finite() and value>=0 for value in prices):
+                    model_costs[name]='free' if all(value==0 for value in prices) else 'paid'
+            except (KeyError,TypeError,InvalidOperation):pass
+    if provider=='openrouter':
+        models.append('openrouter/free');model_costs['openrouter/free']='free'
     preferred=info.get('default')
     models=sorted(set(models),key=lambda name:(name!=preferred,provider=='gemini' and name.startswith('gemini-2.5-'),name))[:2000]
     return {'id':provider,'state':'available' if models else 'no_models','models':models,
+            'model_costs':{name:model_costs[name] for name in models if name in model_costs},
             'message':f'Catalogo raggiunto · {len(models)} modelli. La quota e la capacità di rispondere si verificano con “Prova una risposta”.' if models else 'Servizio raggiunto; nessun modello disponibile. Puoi indicare un identificativo manualmente.'}

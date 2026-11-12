@@ -32,7 +32,12 @@
         for (const el of document.querySelectorAll('[data-tab]')) {el.classList.toggle('active',el.dataset.tab===id);if(el.dataset.tab===id)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');}
     }
     window.addEventListener('hashchange',()=>tab(location.hash.slice(1)));tab(location.hash.slice(1));
-    const modelValues={};let selected='';
+    const modelValues={},modelCosts={};let selected='';
+    function modelCostNote() {
+        if(allowedModels.length)return;
+        const cost=modelCosts[selected]?.[value('model-id')];
+        node('model-note').textContent=cost==='free'?'Prezzo testuale a zero nel catalogo OpenRouter; quote e condizioni del tuo account si applicano.':cost==='paid'?'Modello a consumo nel catalogo OpenRouter: verifica la tariffa prima di usarlo.':'Verifica il catalogo o inserisci un modello. Prezzo e disponibilità dipendono dal tuo piano: consulta Piani e condizioni.';
+    }
     function chooseProvider() {
         if (selected) modelValues[selected]=value('model-id');
         selected=value('connection-provider');
@@ -62,6 +67,16 @@
         modelValues[provider]=pos<0?model:model.slice(pos+1);chooseProvider();
     }
     setModel(settings.model);node('connection-provider').addEventListener('change',chooseProvider);
+    node('model-id').addEventListener('input',modelCostNote);node('model-id').addEventListener('change',modelCostNote);
+    node('service-plan-filter')?.addEventListener('change',()=>{
+        const filter=value('service-plan-filter'),select=node('connection-provider');
+        for(const option of select.options) {
+            const tiers=(option.dataset.tiers||'').split(' ');
+            option.hidden=filter!=='all' && !(filter==='free'?(tiers.includes('free')||tiers.includes('trial')):tiers.includes(filter));
+            option.disabled=option.hidden;
+        }
+        if(select.selectedOptions[0]?.hidden){select.value=[...select.options].find(option=>!option.hidden)?.value||'';chooseProvider();saveState('Servizio da configurare · salva dopo la scelta','dirty');}
+    });
     function payload() {
         const result={};
         for (const el of fields) result[el.dataset.setting]=el.type==='checkbox'?el.checked:el.type==='number'?Number(el.value):el.value.trim();
@@ -151,6 +166,16 @@
 
     form.addEventListener('input',()=>saveState('Modifiche da salvare','dirty'));
     form.addEventListener('submit',async event=>{event.preventDefault();await saveForm();});
+    async function changeSelection(mode,button) {
+        const output=node('selection-state');button.disabled=true;output.textContent='';
+        try {
+            if(!await saveForm())return;
+            await request('/api/integrations/selection',{mode});location.reload();
+        }catch(error){output.textContent=error.message;}
+        finally{button.disabled=false;}
+    }
+    node('show-all-providers')?.addEventListener('click',event=>changeSelection('all',event.currentTarget));
+    node('keep-selected-model')?.addEventListener('click',event=>changeSelection('selected',event.currentTarget));
     async function providerAction(test) {
         const output=node('connection-result'),button=node(test?'test-provider':'verify-provider');button.disabled=true;
         const provider=selected,model=value('model-id');
@@ -163,7 +188,8 @@
             output.dataset.state=result.state==='not_configured'?'error':test?'success':'warning';output.textContent=result.message+(result.latency_ms?' · '+(result.latency_ms/1000).toFixed(1)+' s':'');
             if(!test && result.generation?.message)output.textContent+=' Ultima prova: '+result.generation.message+' '+(result.generation.action||'');
             if(result.models) {
-                node('model-catalog').replaceChildren(...result.models.map(model=>new Option(model,model)));
+                modelCosts[provider]=result.model_costs||{};
+                node('model-catalog').replaceChildren(...result.models.map(model=>new Option(model+(result.model_costs?.[model]==='free'?' · quota gratuita':result.model_costs?.[model]==='paid'?' · a consumo':''),model)));
                 node('model-note').textContent=allowedModels.length?'Catalogo controllato. La selezione rimane limitata ai modelli mantenuti.':result.models.length+' modelli nel catalogo. Digita per cercare; puoi scrivere anche un altro identificativo.';
                 if(!value('model-id') && result.models.length){node('model-id').value=result.models[0];saveState('Modello trovato · salva per usarlo','dirty');}
                 if(selected==='gemini' && value('model-id').startsWith('gemini-2.5-'))output.textContent+=' I modelli 2.5 possono essere dismessi per i nuovi account: prova Gemini 3.1 Flash Lite.';

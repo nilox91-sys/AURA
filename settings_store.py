@@ -10,6 +10,7 @@ from preferences import ENUMS, TEXT_LIMITS, MULTILINE, validate_endpoint
 from provider_registry import PROVIDERS
 
 SECRET_KEYS = {'hf_api_key', 'groq_api_key', 'gemini_api_key', 'openrouter_api_key', 'openai_api_key', 'anthropic_api_key', 'mistral_api_key', 'deepseek_api_key', 'lmstudio_api_key', 'compatible_api_key'}
+SECRET_KEYS.update({'cerebras_api_key','xai_api_key'})
 
 
 class SettingsManager:

@@ -25,7 +25,8 @@ class PreferencesTests(unittest.TestCase):
             response=self.client.get(path)
             self.assertNotIn(b'never-public',response.data);self.assertNotIn(b'also-private',response.data)
         self.assertIn(b'&lt;script&gt;',self.client.get('/').data)
-        self.assertEqual(len(self.client.get('/api/providers').json['providers']),11)
+        from provider_registry import PROVIDERS
+        self.assertEqual(len(self.client.get('/api/providers').json['providers']),len(PROVIDERS))
 
     def test_github_lock_cannot_be_enabled_before_authentication(self):
         response=self.client.post('/api/save_settings',json={'github_require_login':True,'assistant_name':'Changed'})

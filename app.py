@@ -421,6 +421,9 @@ def providers_api():
                 "configured": bool(keys.get(provider)) if provider != "ollama" else None,
                 "models": visible_models(provider,current,LLMEngine.health.catalog(provider,keys) or FREE_PROVIDER_MODELS.get(provider,([info['default']] if info['default'] else []))),
                 "label": info['label'],
+                "tiers": info['tiers'],
+                "plan_label": info['plan_label'],
+                "pricing_url": info['pricing_url'],
             }
             for provider, info in visible_providers(current).items()
         ],
